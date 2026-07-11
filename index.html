@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planet Plot — Planetary Motion Simulator</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header id="app-header">
+      <h1>Planet Plot</h1>
+      <div id="controls">
+        <label for="preset-select">Configuration</label>
+        <select id="preset-select"></select>
+
+        <label for="origin-select">Origin</label>
+        <select id="origin-select"></select>
+
+        <label for="speed-range">Speed</label>
+        <input type="range" id="speed-range" min="0" max="8" step="1" value="3" />
+        <span id="speed-value">1/2x</span>
+
+        <button id="play-pause">Pause</button>
+        <button id="reset">Reset</button>
+        <span id="sim-time">t = 0.0 days</span>
+        <span id="energy-ratio">E: — / — = —%</span>
+      </div>
+    </header>
+
+    <ul id="notifications"></ul>
+
+    <main id="app-main">
+      <!-- Agent A: left object panel -->
+      <aside id="object-panel"></aside>
+
+      <!-- Agent A: center 3D viewport -->
+      <section id="viewport"></section>
+
+      <!-- Agent B: right plotting panel -->
+      <aside id="plot-panel"></aside>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

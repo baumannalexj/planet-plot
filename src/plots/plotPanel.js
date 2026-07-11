@@ -1,0 +1,532 @@
+// Right plotting panel (Agent B).
+//
+// Contract:
+//   mountPlotPanel(el, store) — let the user add plots. Each plot picks a
+//   coordinate system (see src/core/coordinates.js) and what goes on each axis
+//   (X, Y, optional Z). Data is expressed relative to store.origin. Default
+//   plot: spherical speed |v| (X) vs kinetic energy (Y) vs φ azimuth (Z).
+//
+// Rendering: every plot is a single Plot3D (src/plots/plot3d.js, Three.js).
+// There's no separate 2D engine — when Z is off, all points get z=0 and the
+// camera defaults to a straight-on view, so it *reads* like a flat 2D line
+// chart while still being the same renderer (OrbitControls lets the user tilt
+// it if they want). Turning Z on just starts giving points a real Z value and
+// the same scene now has depth. One renderer, no swap/teardown on toggle.
+
+import { COORD_SYSTEMS, DEFAULT_COORD_SYSTEM } from '../core/coordinates.js';
+import { getMetricOptions, computeMetric, isPeriodicMetric, unitForMetric } from './metrics.js';
+import { Plot3D } from './plot3d.js';
+import './plotPanel.css';
+
+const HISTORY_LIMIT = 400;
+const OFF = ''; // Z-select value representing "no Z metric".
+// Angle metrics like φ (azimuth, atan2-based) jump from ~+π to ~-π (or vice
+// versa) the instant a body crosses the branch cut — a real angular step of
+// a few degrees, not a jump of ~2π. Anything bigger than this counts as a
+// wrap rather than genuine motion.
+const WRAP_THRESHOLD = Math.PI;
+// A segment connecting two consecutive normalized points that spans more
+// than this fraction of the plot cube's [-1,1] extent (diameter 2 — 0.5 is a
+// quarter of that) in a SINGLE frame is treated as a discontinuity rather
+// than motion the polyline should draw. This catches non-angle jumps that
+// WRAP_THRESHOLD can't see: e.g. θ (spherical polar, [0,π], no branch cut)
+// plotted against speed still visibly "jumped" per a user report — turned
+// out to be a real body crossing near the pole/close encounter while the sim
+// was running at a high speed factor (several RK4 sub-steps folded into one
+// plotted frame, per AppStore.setSpeed), so the two plotted points are
+// genuinely far apart and a straight line between them is misleading, not a
+// rendering bug. Investigated and ruled out: mixed ratchet normalization
+// (every point is re-normalized from raw values under the CURRENT xRange/
+// yRange/zRange every frame — see the points.map below — so there's no
+// stale-vs-fresh mix), and a ring-buffer wrap connecting buf[end] to buf[0]
+// (the history arrays are plain arrays with Array.shift(), and plot3d.js's
+// segment loop only ever pairs index i-1 with i for i in [1, n) — index 0 is
+// never paired with the newest point). Empirically, ordinary playback (speed
+// factor 1x-8x) across every shipped preset/metric combination never
+// produced a normalized step above ~0.31; this threshold leaves headroom
+// above that while still catching the ~0.5-0.8 steps seen at 16x / near
+// close encounters.
+const STEP_BREAK_THRESHOLD = 0.5;
+
+let nextPlotId = 1;
+
+/** Compact display string for a live per-body axis value. '—' for non-finite (NaN/Infinity). */
+function formatReadoutValue(v) {
+  if (!Number.isFinite(v)) return '—';
+  return v.toFixed(2);
+}
+
+/**
+ * One plot card: coord-system + X/Y/Z metric pickers, a rolling per-body
+ * history buffer, and a Plot3D view normalized into a stable [-1,1] cube.
+ */
+class PlotInstance {
+  constructor(store, onRemove) {
+    this.id = nextPlotId++;
+    this.store = store;
+    this.onRemove = onRemove;
+    this.coordSystemId = DEFAULT_COORD_SYSTEM;
+    this.xMetric = 'time';
+    this.yMetric = 'speed';
+    this.zMetric = null; // off by default
+    /** @type {Map<string, {x: number[], y: number[], z: number[]}>} keyed by body name */
+    this.history = new Map();
+    // Ratcheted axis bounds: widest [min, max] ever observed for a given
+    // metric selection, across all bodies and all history (not just what's
+    // still in the rolling buffer). Grow-only, so a periodic peak doesn't
+    // un-ratchet once it scrolls out of the buffer — that's what keeps
+    // stable/periodic orbits from jittering every frame. Reset whenever the
+    // underlying data range can legitimately change (resetHistory()).
+    //
+    // Exception: an axis whose metric is literally "time" uses a live
+    // window (current buffer's min/max, recomputed every frame) instead of
+    // the ratchet, so it keeps scrolling forward rather than compressing
+    // toward one edge as elapsed sim time grows without bound.
+    this.xRange = { min: Infinity, max: -Infinity };
+    this.yRange = { min: Infinity, max: -Infinity };
+    this.zRange = { min: Infinity, max: -Infinity };
+
+    this._buildDom();
+    this.plot3d = new Plot3D(this.viewportEl);
+    this.resetHistory();
+  }
+
+  _buildDom() {
+    this.card = document.createElement('div');
+    this.card.className = 'plot-card';
+
+    const controls = document.createElement('div');
+    controls.className = 'plot-card__controls';
+
+    const coordRow = document.createElement('div');
+    coordRow.className = 'plot-card__coord-row';
+
+    this.coordSelect = document.createElement('select');
+    this.coordSelect.name = `plot-${this.id}-coord`;
+    for (const sys of Object.values(COORD_SYSTEMS)) {
+      const opt = document.createElement('option');
+      opt.value = sys.id;
+      opt.textContent = sys.label;
+      this.coordSelect.appendChild(opt);
+    }
+    this.coordSelect.value = this.coordSystemId;
+    this.coordSelect.addEventListener('change', () => {
+      this.coordSystemId = this.coordSelect.value;
+      this._rebuildMetricOptions();
+      this.resetHistory();
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'plot-remove-btn';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => this.onRemove(this));
+
+    coordRow.append(this.coordSelect, removeBtn);
+
+    // X/Y/Z as a label|select grid so the three rows share one vertical
+    // edge and equal-width selects, instead of wrapping as a single flex
+    // row (which staggered Z onto its own line at narrower widths).
+    const axisGrid = document.createElement('div');
+    axisGrid.className = 'plot-card__axis-grid';
+
+    const xLabel = document.createElement('span');
+    xLabel.className = 'plot-card__axis-label';
+    xLabel.textContent = 'X:';
+    this.xSelect = document.createElement('select');
+    this.xSelect.name = `plot-${this.id}-x`;
+    this.xSelect.addEventListener('change', () => {
+      this.xMetric = this.xSelect.value;
+      this.resetHistory();
+    });
+    this.xReadout = this._buildReadout();
+
+    const yLabel = document.createElement('span');
+    yLabel.className = 'plot-card__axis-label';
+    yLabel.textContent = 'Y:';
+    this.ySelect = document.createElement('select');
+    this.ySelect.name = `plot-${this.id}-y`;
+    this.ySelect.addEventListener('change', () => {
+      this.yMetric = this.ySelect.value;
+      this.resetHistory();
+    });
+    this.yReadout = this._buildReadout();
+
+    const zLabel = document.createElement('span');
+    zLabel.className = 'plot-card__axis-label';
+    zLabel.textContent = 'Z:';
+    this.zSelect = document.createElement('select');
+    this.zSelect.name = `plot-${this.id}-z`;
+    this.zSelect.addEventListener('change', () => {
+      this.zMetric = this.zSelect.value === OFF ? null : this.zSelect.value;
+      this.resetHistory();
+    });
+    this.zReadout = this._buildReadout();
+
+    axisGrid.append(
+      xLabel, this.xSelect, this.xReadout.el,
+      yLabel, this.ySelect, this.yReadout.el,
+      zLabel, this.zSelect, this.zReadout.el
+    );
+
+    controls.append(coordRow, axisGrid);
+
+    const viewportWrap = document.createElement('div');
+    viewportWrap.className = 'plot-3d-wrap';
+    this.viewportEl = viewportWrap;
+
+    this.card.append(controls, viewportWrap);
+    this._rebuildMetricOptions();
+  }
+
+  /**
+   * Build one axis's live-value readout: a row of per-body color-coded dots
+   * (one per body, in store.sim.bodies order) followed by a single unit
+   * suffix for the whole axis. Returns handles kept on the instance so
+   * pushFrame()/resetHistory() can update it in place each frame instead of
+   * rebuilding innerHTML (perf — same reasoning as the object panel).
+   */
+  _buildReadout() {
+    const el = document.createElement('span');
+    el.className = 'plot-card__readout';
+    const dotsWrap = document.createElement('span');
+    dotsWrap.className = 'plot-card__readout-dots';
+    const unitEl = document.createElement('span');
+    unitEl.className = 'plot-card__readout-unit';
+    el.append(dotsWrap, unitEl);
+    return { el, dotsWrap, unitEl, dots: [] };
+  }
+
+  /** Rebuild a readout's per-body dot+value slots to match the current body set/colors. */
+  _rebuildReadoutSlots(readout, bodies) {
+    readout.dotsWrap.innerHTML = '';
+    readout.dots = bodies.map((b) => {
+      const dot = document.createElement('span');
+      dot.className = 'plot-card__readout-dot';
+      dot.style.color = b.color;
+      const valueText = document.createTextNode('—');
+      dot.append('●', valueText);
+      readout.dotsWrap.appendChild(dot);
+      return valueText;
+    });
+  }
+
+  /** Update one axis readout's unit suffix (only changes on metric/coord-system change). */
+  _setReadoutUnit(readout, metricId) {
+    const unit = metricId ? unitForMetric(metricId, this.coordSystemId) : '';
+    readout.unitEl.textContent = unit ? ` ${unit}` : '';
+  }
+
+  /** Rebuild all three readouts' body slots + unit suffixes (bodies/colors or metrics changed). */
+  _rebuildReadouts(bodies) {
+    this._rebuildReadoutSlots(this.xReadout, bodies);
+    this._rebuildReadoutSlots(this.yReadout, bodies);
+    this._rebuildReadoutSlots(this.zReadout, this.zMetric ? bodies : []);
+    this._setReadoutUnit(this.xReadout, this.xMetric);
+    this._setReadoutUnit(this.yReadout, this.yMetric);
+    this._setReadoutUnit(this.zReadout, this.zMetric);
+  }
+
+  /** Repopulate the X/Y/Z metric dropdowns from the current coordinate system. */
+  _rebuildMetricOptions() {
+    const options = getMetricOptions(this.coordSystemId);
+
+    for (const select of [this.xSelect, this.ySelect]) {
+      const current = select === this.xSelect ? this.xMetric : this.yMetric;
+      select.innerHTML = '';
+      for (const opt of options) {
+        const el = document.createElement('option');
+        el.value = opt.id;
+        el.textContent = opt.label;
+        select.appendChild(el);
+      }
+      // Keep the previous selection if it still exists in the new system,
+      // otherwise fall back to the first option.
+      select.value = options.some((o) => o.id === current) ? current : options[0].id;
+    }
+    this.xMetric = this.xSelect.value;
+    this.yMetric = this.ySelect.value;
+
+    const currentZ = this.zMetric ?? OFF;
+    this.zSelect.innerHTML = '';
+    const offOpt = document.createElement('option');
+    offOpt.value = OFF;
+    offOpt.textContent = '— off —';
+    this.zSelect.appendChild(offOpt);
+    for (const opt of options) {
+      const el = document.createElement('option');
+      el.value = opt.id;
+      el.textContent = opt.label;
+      this.zSelect.appendChild(el);
+    }
+    // Fall back to off (not "first option") if the previous Z metric
+    // doesn't exist in the new coordinate system — Z is opt-in, so losing
+    // the selection should feel like turning it off, not silently picking
+    // an unrelated component.
+    this.zSelect.value = currentZ === OFF || options.some((o) => o.id === currentZ) ? currentZ : OFF;
+    this.zMetric = this.zSelect.value === OFF ? null : this.zSelect.value;
+  }
+
+  _metricLabel(metricId) {
+    if (!metricId) return null;
+    const opt = getMetricOptions(this.coordSystemId).find((o) => o.id === metricId);
+    return opt ? opt.label : metricId;
+  }
+
+  /** Grow a ratcheted [min, max] range to cover `value`, never shrinking it. */
+  _growRange(range, value) {
+    if (!Number.isFinite(value)) return;
+    if (value < range.min) range.min = value;
+    if (value > range.max) range.max = value;
+  }
+
+  /**
+   * Padded [min, max] for a range: a small % of the observed span on each
+   * side, with a floor so a near-flat line doesn't collapse onto a
+   * zero-width axis.
+   */
+  _paddedBounds(range) {
+    if (!Number.isFinite(range.min) || !Number.isFinite(range.max)) return null;
+    const span = range.max - range.min;
+    // Normally pad by 5% of the observed span. For a near-flat line (span
+    // ~0) fall back to 5% of the value's own magnitude so the floor scales
+    // with the metric (radians vs. AU vs. energy) instead of a fixed
+    // constant that would swamp small-scale metrics like angles.
+    const magnitude = Math.max(Math.abs(range.min), Math.abs(range.max), 1);
+    const pad = span > 1e-9 ? span * 0.05 : magnitude * 0.05;
+    return { min: range.min - pad, max: range.max + pad };
+  }
+
+  /** Live min/max across every body's buffered values for one component ('x'|'y'|'z'). */
+  _windowRange(component) {
+    const range = { min: Infinity, max: -Infinity };
+    for (const buf of this.history.values()) {
+      for (const v of buf[component]) this._growRange(range, v);
+    }
+    return range;
+  }
+
+  /**
+   * Bounds to normalize an axis by: a live scrolling window for "time"
+   * (so it keeps moving forward instead of compressing as elapsed time
+   * grows), otherwise the grow-only ratchet (so periodic data doesn't
+   * jitter as points scroll out of the buffer).
+   */
+  _boundsFor(metricId, ratchetRange, component) {
+    if (metricId === 'time') return this._paddedBounds(this._windowRange(component));
+    return this._paddedBounds(ratchetRange);
+  }
+
+  /** Map a value into [-1, 1] given bounds; degrades gracefully if bounds are null/degenerate. */
+  _normalize(value, bounds) {
+    if (!bounds || !Number.isFinite(value)) return 0;
+    const span = bounds.max - bounds.min;
+    if (span <= 1e-12) return 0;
+    const n = ((value - bounds.min) / span) * 2 - 1;
+    // Bounds are padded outward from the ratchet/window range (see
+    // _paddedBounds), so every in-range value should already land strictly
+    // inside (-1, 1) — this clamp is a hard guarantee on top of that so a
+    // trace can never be drawn poking through the bounding box, even from an
+    // edge case (e.g. a value observed between this frame's _growRange call
+    // and the bounds being read, or float rounding right at the ratchet
+    // extreme).
+    return Math.min(1, Math.max(-1, n));
+  }
+
+  /** Clear buffered history + ratchets and rebuild series/labels (metric/origin/preset changed). */
+  resetHistory() {
+    this.history.clear();
+    const bodies = this.store.sim.bodies;
+    for (const b of bodies) this.history.set(b.name, { x: [], y: [], z: [] });
+
+    this.xRange = { min: Infinity, max: -Infinity };
+    this.yRange = { min: Infinity, max: -Infinity };
+    this.zRange = { min: Infinity, max: -Infinity };
+
+    this.plot3d.setAxisLabels(
+      this._axisLabelWithUnit(this.xMetric),
+      this._axisLabelWithUnit(this.yMetric),
+      this._axisLabelWithUnit(this.zMetric)
+    );
+    this.plot3d.setSeries(bodies.map((b) => ({ id: b.name, color: b.color, points: [] })));
+    // A fresh selection means the old camera framing no longer matches the
+    // data (e.g. Z just got turned off) — snap back to the default
+    // straight-on view so "off" plots read as flat 2D again.
+    this.plot3d.resetCamera();
+    // Body set/colors and/or the chosen metrics may have changed — rebuild
+    // the live-value readout slots and unit suffixes to match.
+    this._rebuildReadouts(bodies);
+  }
+
+  /** Axis label with a "(unit)" suffix, e.g. "φ (rad)" — no parens when the metric is unitless/off. */
+  _axisLabelWithUnit(metricId) {
+    const label = this._metricLabel(metricId);
+    if (!label) return label;
+    const unit = unitForMetric(metricId, this.coordSystemId);
+    return unit ? `${label} (${unit})` : label;
+  }
+
+  /** Push one new point per body from the latest snapshot and re-render. */
+  pushFrame(snapshot, origin) {
+    const bodies = snapshot.relativeBodies(origin);
+    bodies.forEach((body) => {
+      let buf = this.history.get(body.name);
+      if (!buf) {
+        buf = { x: [], y: [], z: [] };
+        this.history.set(body.name, buf);
+      }
+      const x = computeMetric(this.xMetric, body, snapshot, this.coordSystemId);
+      const y = computeMetric(this.yMetric, body, snapshot, this.coordSystemId);
+      const z = this.zMetric ? computeMetric(this.zMetric, body, snapshot, this.coordSystemId) : 0;
+      buf.x.push(x);
+      buf.y.push(y);
+      buf.z.push(z);
+      if (buf.x.length > HISTORY_LIMIT) {
+        buf.x.shift();
+        buf.y.shift();
+        buf.z.shift();
+      }
+
+      // Only grow the ratchets for axes that actually use them (i.e. not
+      // "time", which uses a live window instead — see _boundsFor).
+      if (this.xMetric !== 'time') this._growRange(this.xRange, x);
+      if (this.yMetric !== 'time') this._growRange(this.yRange, y);
+      if (this.zMetric && this.zMetric !== 'time') this._growRange(this.zRange, z);
+    });
+
+    const xBounds = this._boundsFor(this.xMetric, this.xRange, 'x');
+    const yBounds = this._boundsFor(this.yMetric, this.yRange, 'y');
+    const zBounds = this.zMetric ? this._boundsFor(this.zMetric, this.zRange, 'z') : null;
+
+    const xPeriodic = isPeriodicMetric(this.xMetric);
+    const yPeriodic = isPeriodicMetric(this.yMetric);
+    const zPeriodic = this.zMetric && isPeriodicMetric(this.zMetric);
+
+    const seriesList = bodies.map((body) => {
+      const buf = this.history.get(body.name);
+      const points = buf.x.map((xv, idx) => [
+        this._normalize(xv, xBounds),
+        this._normalize(buf.y[idx], yBounds),
+        zBounds ? this._normalize(buf.z[idx], zBounds) : 0,
+      ]);
+      // Break the polyline between two consecutive samples whenever either:
+      //  (a) a periodic (angle) axis wrapped past its branch cut in RAW
+      //      units — this catches φ/ν jumping from ~+π to ~-π even though
+      //      the normalized step for that axis alone might be small if the
+      //      other axis dominates the cube's aspect ratio; or
+      //  (b) the two points' normalized positions are simply far apart in
+      //      the [-1,1] cube — this catches every other kind of "the line
+      //      jumps/clips across the plot" discontinuity (e.g. θ vs speed
+      //      near a close encounter, especially at higher sim speed factors
+      //      where several integrator sub-steps are folded into one plotted
+      //      frame) that isn't a branch-cut wrap at all, just two genuinely
+      //      distant samples that a straight connecting line misrepresents.
+      // See WRAP_THRESHOLD / STEP_BREAK_THRESHOLD above for the reasoning
+      // and empirical bounds behind each check.
+      const breaks = points.map((p, idx) => {
+        if (idx === 0) return false;
+        const wrapped =
+          (xPeriodic && Math.abs(buf.x[idx] - buf.x[idx - 1]) > WRAP_THRESHOLD) ||
+          (yPeriodic && Math.abs(buf.y[idx] - buf.y[idx - 1]) > WRAP_THRESHOLD) ||
+          (zPeriodic && Math.abs(buf.z[idx] - buf.z[idx - 1]) > WRAP_THRESHOLD);
+        if (wrapped) return true;
+        const prev = points[idx - 1];
+        const dx = p[0] - prev[0];
+        const dy = p[1] - prev[1];
+        const dz = p[2] - prev[2];
+        return Math.sqrt(dx * dx + dy * dy + dz * dz) > STEP_BREAK_THRESHOLD;
+      });
+      return { id: body.name, color: body.color, points, breaks };
+    });
+    this.plot3d.setSeries(seriesList);
+
+    // Live per-axis value readouts: reuse the x/y/z already computed above
+    // for each body this frame — update the existing text nodes in place
+    // (not innerHTML) so this doesn't thrash layout every frame.
+    bodies.forEach((body, idx) => {
+      const buf = this.history.get(body.name);
+      const last = buf.x.length - 1;
+      if (this.xReadout.dots[idx]) this.xReadout.dots[idx].data = formatReadoutValue(buf.x[last]);
+      if (this.yReadout.dots[idx]) this.yReadout.dots[idx].data = formatReadoutValue(buf.y[last]);
+      if (this.zMetric && this.zReadout.dots[idx]) this.zReadout.dots[idx].data = formatReadoutValue(buf.z[last]);
+    });
+  }
+
+  destroy() {
+    this.plot3d.dispose();
+    this.card.remove();
+  }
+}
+
+/**
+ * Mount the plotting panel: an "Add plot" button and a stack of PlotInstance
+ * cards, all wired to a single store subscription set.
+ * @param {HTMLElement} el
+ * @param {import('../app/store.js').AppStore} store
+ */
+export function mountPlotPanel(el, store) {
+  el.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'plot-panel__header';
+  const title = document.createElement('h2');
+  title.textContent = 'Plots';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'plot-add-btn';
+  addBtn.textContent = '+ Add plot';
+  header.append(title, addBtn);
+
+  const list = document.createElement('div');
+  list.className = 'plot-list';
+
+  el.append(header, list);
+
+  /** @type {PlotInstance[]} */
+  const plots = [];
+
+  function addPlot(configure) {
+    const plot = new PlotInstance(store, removePlot);
+    if (configure) configure(plot);
+    plots.push(plot);
+    list.appendChild(plot.card);
+    return plot;
+  }
+
+  function removePlot(plot) {
+    const idx = plots.indexOf(plot);
+    if (idx === -1) return;
+    plots.splice(idx, 1);
+    plot.destroy();
+  }
+
+  addBtn.addEventListener('click', () => addPlot());
+
+  // Default first plot: spherical, X = speed |v|, Y = kinetic energy,
+  // Z = phi (azimuth) — Z is ON, so the default plot is 3D immediately. Set
+  // the coord system before the metric ids so _rebuildMetricOptions()
+  // populates the selects from spherical's axis list (r/theta/phi) — 'phi'
+  // isn't a valid option under the initial cartesian default, so it must be
+  // set after.
+  addPlot((plot) => {
+    plot.coordSystemId = 'spherical';
+    plot.coordSelect.value = 'spherical';
+    plot.xMetric = 'speed';
+    plot.yMetric = 'ke';
+    plot.zMetric = 'phi';
+    plot._rebuildMetricOptions();
+    plot.resetHistory();
+  });
+
+  store.onFrame((snapshot) => {
+    for (const plot of plots) plot.pushFrame(snapshot, store.origin);
+  });
+
+  // Values are expressed relative to store.origin, so a frame-of-reference
+  // change invalidates buffered history — same story for a preset swap,
+  // which also changes body identities/colors and rebuilds datasets.
+  store.onOriginChange(() => {
+    for (const plot of plots) plot.resetHistory();
+  });
+  store.onPresetChange(() => {
+    for (const plot of plots) plot.resetHistory();
+  });
+}
