@@ -34,6 +34,21 @@ const MARKER_BASE_RADIUS = 0.025;
 // doubles its apparent size there without ballooning nearby markers.
 const MARKER_NLIPS_K = 0.6;
 
+// Circular-embedding geometry for a periodic (angle) axis — see PlotInstance
+// in plotPanel.js, which maps such an axis to the ANGLE around a ring
+// instead of a linear coordinate, so a wrapping angle (+π meeting -π) closes
+// into a continuous loop with no seam to break the polyline at. These two
+// constants define exactly where that ring sits and are exported so
+// plotPanel.js's embedding math uses the identical radius band as the guide
+// geometry drawn here — CIRCULAR_R0 is the ring's mean radius,
+// CIRCULAR_RK is how far the "radius" role metric can push it out (+) or in
+// (-) from that mean. Outer bound (R0+RK = 1.0) matches the cartesian cube's
+// HALF_EXTENT so the two modes read as the same overall size; inner bound
+// (R0-RK = 0.2) stays clear of the center, where radius --> 0 would collapse
+// every angle onto one point.
+export const CIRCULAR_R0 = 0.6;
+export const CIRCULAR_RK = 0.4;
+
 /**
  * One Three.js scene + renderer + OrbitControls, sized to a container div.
  * Draws normalized [-1,1]^3 axes/box/labels plus per-body polylines.
@@ -55,11 +70,17 @@ export class Plot3D {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.1;
+    // Which scene axis is the circular embedding's ring-normal/height axis
+    // (see setGeometryMode) — null in the plain cartesian case. resetCamera()
+    // reads this to pick a starting view that actually shows the ring as a
+    // loop (looking along the normal) instead of edge-on.
+    this._ringNormalKey = null;
     this.resetCamera();
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
     this._buildAxes();
+    this._buildCircularGuide();
 
     this._seriesGroup = new THREE.Group();
     this.scene.add(this._seriesGroup);
@@ -94,10 +115,36 @@ export class Plot3D {
     }
   }
 
-  /** Straight-on front view down -Z at the XY plane — reads as a flat 2D plot when Z is unused. */
+  /**
+   * Default view. Plain cartesian case: straight-on down -Z at the XY plane
+   * — reads as a flat 2D plot when Z is unused. Circular case
+   * (this._ringNormalKey set — see setGeometryMode): a straight-on view
+   * would look directly down the ring's normal axis and show it edge-on as
+   * a flat line, hiding the very thing that makes it a loop — instead start
+   * at a 3/4 angle offset from the normal so the ring reads as a closed
+   * loop immediately (the user can still orbit via OrbitControls from
+   * there).
+   */
   resetCamera() {
-    this.camera.position.set(0, 0, 3.4);
-    this.camera.up.set(0, 1, 0);
+    const D = 3.4; // camera distance, matches the old fixed position's magnitude
+    const key = this._ringNormalKey;
+    if (!key) {
+      this.camera.position.set(0, 0, D);
+      this.camera.up.set(0, 1, 0);
+    } else if (key === 'y') {
+      // Ring lies in the XZ-plane (normal Y, the common case — e.g. default
+      // plot's φ ring): view from up and to the side.
+      this.camera.position.set(D * 0.55, D * 0.7, D * 0.55);
+      this.camera.up.set(0, 1, 0);
+    } else if (key === 'x') {
+      // Ring lies in the YZ-plane (normal X).
+      this.camera.position.set(D * 0.7, D * 0.55, D * 0.55);
+      this.camera.up.set(0, 1, 0);
+    } else {
+      // Ring lies in the XY-plane (normal Z).
+      this.camera.position.set(D * 0.55, D * 0.55, D * 0.7);
+      this.camera.up.set(0, 1, 0);
+    }
     this.camera.lookAt(0, 0, 0);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
@@ -109,9 +156,15 @@ export class Plot3D {
 
     const axisMat = new THREE.LineBasicMaterial({ color: AXIS_COLOR });
     const mkLine = (a, b) => new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), axisMat);
-    this._axesGroup.add(mkLine(new THREE.Vector3(-L, 0, 0), new THREE.Vector3(L, 0, 0)));
-    this._axesGroup.add(mkLine(new THREE.Vector3(0, -L, 0), new THREE.Vector3(0, L, 0)));
-    this._axesGroup.add(mkLine(new THREE.Vector3(0, 0, -L), new THREE.Vector3(0, 0, L)));
+    // Kept individually addressable (not just added to the group) so
+    // setGeometryMode() can hide the pair of straight axis lines that a
+    // circular-embedded periodic axis replaces with a ring guide.
+    this._axisLines = {
+      x: mkLine(new THREE.Vector3(-L, 0, 0), new THREE.Vector3(L, 0, 0)),
+      y: mkLine(new THREE.Vector3(0, -L, 0), new THREE.Vector3(0, L, 0)),
+      z: mkLine(new THREE.Vector3(0, 0, -L), new THREE.Vector3(0, 0, L)),
+    };
+    this._axesGroup.add(this._axisLines.x, this._axisLines.y, this._axisLines.z);
 
     const boxGeom = new THREE.BoxGeometry(2 * L, 2 * L, 2 * L);
     const boxEdges = new THREE.EdgesGeometry(boxGeom);
@@ -128,6 +181,81 @@ export class Plot3D {
     this._yLabel.position.set(0, L * 1.18, 0);
     this._zLabel.position.set(0, 0, L * 1.18);
     this.scene.add(this._xLabel, this._yLabel, this._zLabel);
+  }
+
+  /**
+   * Build the 3 possible ring guides (one per plane, keyed by the axis
+   * NORMAL to that plane) used when a periodic axis is circular-embedded —
+   * see setGeometryMode(). All 3 are built once up front (cheap — 65-vertex
+   * line loops) and start hidden; only the one matching the current
+   * embedding's "height"/normal axis is shown at a time. A single radius
+   * (HALF_EXTENT, matching the cartesian box's half-extent) is drawn as the
+   * guide — the actual data ring's radius modulates within
+   * [CIRCULAR_R0 - CIRCULAR_RK, CIRCULAR_R0 + CIRCULAR_RK] (see
+   * plotPanel.js), so data points sit at or inside this guide circle.
+   */
+  _buildCircularGuide() {
+    const L = HALF_EXTENT;
+    const segments = 64;
+    const mat = new THREE.LineBasicMaterial({ color: AXIS_COLOR });
+    // planeAxes = the two coordinate keys the ring is drawn in; a circle is
+    // rotationally symmetric so it doesn't matter which one gets cos vs sin.
+    const mkRing = (planeAxes) => {
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = (i / segments) * Math.PI * 2;
+        const p = { x: 0, y: 0, z: 0 };
+        p[planeAxes[0]] = Math.cos(t) * L;
+        p[planeAxes[1]] = Math.sin(t) * L;
+        pts.push(new THREE.Vector3(p.x, p.y, p.z));
+      }
+      const ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      ring.visible = false;
+      return ring;
+    };
+    this._ringGuides = {
+      z: mkRing(['x', 'y']), // normal Z: ring lies in the XY-plane
+      y: mkRing(['x', 'z']), // normal Y: ring lies in the XZ-plane
+      x: mkRing(['y', 'z']), // normal X: ring lies in the YZ-plane
+    };
+    this.scene.add(this._ringGuides.x, this._ringGuides.y, this._ringGuides.z);
+  }
+
+  /**
+   * Switch this plot's guide geometry between the default cartesian
+   * [-1,1]^3 box+axes and a circular embedding for one periodic axis.
+   * @param {{ringSlot: 'x'|'y'|'z', radiusSlot: ('x'|'y'|'z')|null, heightSlot: ('x'|'y'|'z')|null}|null} circular
+   *   Pass null for the plain cartesian case (no periodic metric selected).
+   *   Same shape as PlotInstance._computeCircularPlan()'s return value:
+   *   ringSlot is the periodic axis (mapped to angle around the ring),
+   *   radiusSlot is the linear metric modulating the ring's radius, and
+   *   heightSlot is the linear metric giving position along the ring's
+   *   normal direction (null when there's no 3rd metric, e.g. Z is off —
+   *   the ring then just sits flat at height 0).
+   */
+  setGeometryMode(circular) {
+    // The ring's plane is spanned by ringSlot's and radiusSlot's own scene
+    // axes (see PlotInstance._buildSeriesPoint — same two slots receive the
+    // cos/sin components there), so the "normal"/height axis is whichever
+    // of x/y/z is neither of those.
+    const normalKey = circular
+      ? ['x', 'y', 'z'].find((k) => k !== circular.radiusSlot && k !== circular.ringSlot)
+      : null;
+    this._ringNormalKey = normalKey; // read by resetCamera() for the initial view angle
+    for (const key of ['x', 'y', 'z']) this._ringGuides[key].visible = key === normalKey;
+    if (!circular) {
+      for (const line of Object.values(this._axisLines)) line.visible = true;
+    } else {
+      // The ring guide stands in for the straight ring-axis line (and the
+      // radius-axis line, if any — radius has no straight line of its own
+      // once embedded, it only modulates the ring's shape). The
+      // normal/height line stays only if a real metric actually uses it
+      // (2D case: heightSlot is null, Z is unused, nothing to show a line
+      // for).
+      this._axisLines[circular.ringSlot].visible = false;
+      if (circular.radiusSlot) this._axisLines[circular.radiusSlot].visible = false;
+      this._axisLines[normalKey].visible = !!circular.heightSlot;
+    }
   }
 
   _makeLabelSprite() {
@@ -313,6 +441,11 @@ export class Plot3D {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) obj.material.dispose();
     });
+
+    for (const ring of Object.values(this._ringGuides)) {
+      ring.geometry.dispose();
+      ring.material.dispose();
+    }
 
     for (const sprite of [this._xLabel, this._yLabel, this._zLabel]) {
       sprite.material.map.dispose();

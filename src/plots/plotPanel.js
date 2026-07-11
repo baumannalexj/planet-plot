@@ -15,37 +15,32 @@
 
 import { COORD_SYSTEMS, DEFAULT_COORD_SYSTEM } from '../core/coordinates.js';
 import { getMetricOptions, computeMetric, isPeriodicMetric, unitForMetric } from './metrics.js';
-import { Plot3D } from './plot3d.js';
+import { Plot3D, CIRCULAR_R0, CIRCULAR_RK } from './plot3d.js';
 import './plotPanel.css';
 
 const HISTORY_LIMIT = 400;
 const OFF = ''; // Z-select value representing "no Z metric".
-// Angle metrics like φ (azimuth, atan2-based) jump from ~+π to ~-π (or vice
-// versa) the instant a body crosses the branch cut — a real angular step of
-// a few degrees, not a jump of ~2π. Anything bigger than this counts as a
-// wrap rather than genuine motion.
-const WRAP_THRESHOLD = Math.PI;
 // A segment connecting two consecutive normalized points that spans more
 // than this fraction of the plot cube's [-1,1] extent (diameter 2 — 0.5 is a
 // quarter of that) in a SINGLE frame is treated as a discontinuity rather
 // than motion the polyline should draw. This catches non-angle jumps that
-// WRAP_THRESHOLD can't see: e.g. θ (spherical polar, [0,π], no branch cut)
-// plotted against speed still visibly "jumped" per a user report — turned
-// out to be a real body crossing near the pole/close encounter while the sim
-// was running at a high speed factor (several RK4 sub-steps folded into one
-// plotted frame, per AppStore.setSpeed), so the two plotted points are
-// genuinely far apart and a straight line between them is misleading, not a
-// rendering bug. Investigated and ruled out: mixed ratchet normalization
-// (every point is re-normalized from raw values under the CURRENT xRange/
-// yRange/zRange every frame — see the points.map below — so there's no
-// stale-vs-fresh mix), and a ring-buffer wrap connecting buf[end] to buf[0]
-// (the history arrays are plain arrays with Array.shift(), and plot3d.js's
-// segment loop only ever pairs index i-1 with i for i in [1, n) — index 0 is
-// never paired with the newest point). Empirically, ordinary playback (speed
-// factor 1x-8x) across every shipped preset/metric combination never
-// produced a normalized step above ~0.31; this threshold leaves headroom
-// above that while still catching the ~0.5-0.8 steps seen at 16x / near
-// close encounters.
+// the periodic-axis branch-cut fallback below can't see: e.g. θ (spherical
+// polar, [0,π], no branch cut) plotted against speed still visibly "jumped"
+// per a user report — turned out to be a real body crossing near the pole/
+// close encounter while the sim was running at a high speed factor (several
+// RK4 sub-steps folded into one plotted frame, per AppStore.setSpeed), so
+// the two plotted points are genuinely far apart and a straight line between
+// them is misleading, not a rendering bug. Investigated and ruled out: mixed
+// ratchet normalization (every point is re-normalized from raw values under
+// the CURRENT xRange/yRange/zRange every frame — see the points.map below —
+// so there's no stale-vs-fresh mix), and a ring-buffer wrap connecting
+// buf[end] to buf[0] (the history arrays are plain arrays with
+// Array.shift(), and plot3d.js's segment loop only ever pairs index i-1 with
+// i for i in [1, n) — index 0 is never paired with the newest point).
+// Empirically, ordinary playback (speed factor 1x-8x) across every shipped
+// preset/metric combination never produced a normalized step above ~0.31;
+// this threshold leaves headroom above that while still catching the
+// ~0.5-0.8 steps seen at 16x / near close encounters.
 const STEP_BREAK_THRESHOLD = 0.5;
 
 let nextPlotId = 1;
@@ -332,6 +327,132 @@ class PlotInstance {
     return Math.min(1, Math.max(-1, n));
   }
 
+  /** The metric id currently assigned to one axis slot ('x'|'y'|'z'). */
+  _metricForSlot(slot) {
+    return slot === 'z' ? this.zMetric : this[`${slot}Metric`];
+  }
+
+  /**
+   * Decide whether this plot needs the circular embedding, and if so, which
+   * slot plays which role. A periodic metric (phi, nu — see isPeriodicMetric)
+   * is an ANGLE: 2π ≡ 0, so +π and -π are the same point and plotting it as
+   * an ordinary bounded linear coordinate is wrong — it either needs a break
+   * at the seam (old approach) or grows unboundedly if unwrapped (rejected —
+   * defeats its periodicity). Instead, when exactly one active slot is
+   * periodic, that slot becomes the ANGLE around a ring/cylinder (see
+   * _buildSeriesPoint) and never needs a break: cos/sin naturally close the
+   * loop.
+   *
+   * @returns {{ringSlot: 'x'|'y'|'z', radiusSlot: ('x'|'y'|'z')|null, heightSlot: ('x'|'y'|'z')|null} | null}
+   *   null when no active slot is periodic (plain cartesian cube).
+   *   If MORE than one active slot is periodic, only the first (x, then y,
+   *   then z priority) becomes the ring; any other periodic slot lands in
+   *   radiusSlot/heightSlot and is plotted as an ordinary linear value (see
+   *   _isBreak for how its branch cut is still handled) — a full torus
+   *   embedding for two simultaneous angles is deliberately not built here.
+   */
+  _computeCircularPlan() {
+    const activeSlots = ['x', 'y', ...(this.zMetric ? ['z'] : [])];
+    const periodicSlots = activeSlots.filter((s) => isPeriodicMetric(this._metricForSlot(s)));
+    if (periodicSlots.length === 0) return null;
+    const ringSlot = periodicSlots[0];
+    const otherSlots = activeSlots.filter((s) => s !== ringSlot);
+    return { ringSlot, radiusSlot: otherSlots[0] ?? null, heightSlot: otherSlots[1] ?? null };
+  }
+
+  /**
+   * Precompute this frame's normalization bounds for whichever slots need
+   * them (once per frame, not once per point — mirrors the old flat-cube
+   * code's xBounds/yBounds/zBounds). Circular mode only needs bounds for
+   * radiusSlot/heightSlot (linear roles); the ring slot's raw angle is used
+   * directly, no bounds required (see _buildSeriesPoint).
+   */
+  _frameBounds() {
+    const ring = this._circularPlan;
+    if (!ring) {
+      return {
+        x: this._boundsFor(this.xMetric, this.xRange, 'x'),
+        y: this._boundsFor(this.yMetric, this.yRange, 'y'),
+        z: this.zMetric ? this._boundsFor(this.zMetric, this.zRange, 'z') : null,
+      };
+    }
+    const bounds = {};
+    for (const slot of [ring.radiusSlot, ring.heightSlot]) {
+      if (slot) bounds[slot] = this._boundsFor(this._metricForSlot(slot), this[`${slot}Range`], slot);
+    }
+    return bounds;
+  }
+
+  /**
+   * One history-buffer index -> one normalized 3D scene point. Plain
+   * cartesian case: each slot independently normalized into [-1,1] as
+   * before. Circular case (this._circularPlan set): the ring slot's RAW
+   * angle (already bounded to (-π, π]) maps directly to a position around a
+   * circle via cos/sin — no ratcheting needed, since an angle is already
+   * bounded and 2π-periodic, so it can never "poke out" of the ring the way
+   * an unbounded linear value could poke out of the cube. The remaining
+   * slot(s) become the ring's radius (in-plane modulation, mapped into
+   * [CIRCULAR_R0 - CIRCULAR_RK, CIRCULAR_R0 + CIRCULAR_RK]) and height
+   * (out-of-plane, reusing the normal [-1,1] linear normalization).
+   */
+  _buildSeriesPoint(buf, idx, bounds) {
+    const ring = this._circularPlan;
+    if (!ring) {
+      return [
+        this._normalize(buf.x[idx], bounds.x),
+        this._normalize(buf.y[idx], bounds.y),
+        bounds.z ? this._normalize(buf.z[idx], bounds.z) : 0,
+      ];
+    }
+
+    const rawAngle = buf[ring.ringSlot][idx];
+    const angle = Number.isFinite(rawAngle) ? rawAngle : 0;
+
+    const radiusN = ring.radiusSlot ? this._normalize(buf[ring.radiusSlot][idx], bounds[ring.radiusSlot]) : 0;
+    const radius = CIRCULAR_R0 + radiusN * CIRCULAR_RK;
+
+    const height = ring.heightSlot ? this._normalize(buf[ring.heightSlot][idx], bounds[ring.heightSlot]) : 0;
+
+    // The ring's plane is spanned by the ringSlot and radiusSlot coordinate
+    // AXES themselves (cos on one, sin on the other) — matches
+    // Plot3D.setGeometryMode(), which derives the height/normal axis as
+    // whichever of x/y/z is neither of those two. heightSlot's value (if
+    // any) goes on that remaining axis.
+    const point = { x: 0, y: 0, z: 0 };
+    point[ring.ringSlot] = Math.cos(angle) * radius;
+    if (ring.radiusSlot) point[ring.radiusSlot] = Math.sin(angle) * radius;
+    if (ring.heightSlot) point[ring.heightSlot] = height;
+    return [point.x, point.y, point.z];
+  }
+
+  /**
+   * Whether to break the polyline between points[idx-1] and points[idx].
+   * Always applies the generic large-single-frame-step check (genuine
+   * under-sampling at high sim speed — see STEP_BREAK_THRESHOLD); in
+   * circular mode, ALSO checks for a branch-cut flip in whichever slot(s)
+   * ended up filling the radius/height role despite being periodic-valued
+   * (the 2+-periodic-axes fallback noted in _computeCircularPlan) — that
+   * value is plotted as an ordinary linear coordinate, not embedded on a
+   * ring, so it still needs a seam break to avoid a spurious chord. The
+   * ring slot itself never needs this: cos/sin of a raw (-π, π] angle is
+   * already continuous across the seam by construction.
+   */
+  _isBreak(buf, idx, point, prevPoint) {
+    const dx = point[0] - prevPoint[0];
+    const dy = point[1] - prevPoint[1];
+    const dz = point[2] - prevPoint[2];
+    if (Math.sqrt(dx * dx + dy * dy + dz * dz) > STEP_BREAK_THRESHOLD) return true;
+
+    const ring = this._circularPlan;
+    if (!ring) return false;
+    for (const slot of [ring.radiusSlot, ring.heightSlot]) {
+      if (!slot || !isPeriodicMetric(this._metricForSlot(slot))) continue;
+      const delta = buf[slot][idx] - buf[slot][idx - 1];
+      if (Math.abs(delta) > Math.PI) return true;
+    }
+    return false;
+  }
+
   /** Clear buffered history + ratchets and rebuild series/labels (metric/origin/preset changed). */
   resetHistory() {
     this.history.clear();
@@ -341,6 +462,12 @@ class PlotInstance {
     this.xRange = { min: Infinity, max: -Infinity };
     this.yRange = { min: Infinity, max: -Infinity };
     this.zRange = { min: Infinity, max: -Infinity };
+
+    // Recompute once here (rather than every pushFrame) since it only
+    // depends on which metrics are selected, not on the data itself — see
+    // _computeCircularPlan for what "circular" means and when it applies.
+    this._circularPlan = this._computeCircularPlan();
+    this.plot3d.setGeometryMode(this._circularPlan);
 
     this.plot3d.setAxisLabels(
       this._axisLabelWithUnit(this.xMetric),
@@ -368,12 +495,20 @@ class PlotInstance {
   /** Push one new point per body from the latest snapshot and re-render. */
   pushFrame(snapshot, origin) {
     const bodies = snapshot.relativeBodies(origin);
+
     bodies.forEach((body) => {
       let buf = this.history.get(body.name);
       if (!buf) {
         buf = { x: [], y: [], z: [] };
         this.history.set(body.name, buf);
       }
+      // Raw values, straight from computeMetric — no unwrapping. A periodic
+      // metric's raw sample is always in (-π, π] (atan2's range) and stays
+      // that way in the buffer; when it's the ring slot, _buildSeriesPoint
+      // maps it to a position around a circle (cos/sin), so the bounded raw
+      // angle is exactly what circular embedding wants. Ratchets below skip
+      // periodic slots entirely for the same reason: a bounded angle needs
+      // no ratchet/window normalization, unlike a linear metric.
       const x = computeMetric(this.xMetric, body, snapshot, this.coordSystemId);
       const y = computeMetric(this.yMetric, body, snapshot, this.coordSystemId);
       const z = this.zMetric ? computeMetric(this.zMetric, body, snapshot, this.coordSystemId) : 0;
@@ -386,62 +521,35 @@ class PlotInstance {
         buf.z.shift();
       }
 
-      // Only grow the ratchets for axes that actually use them (i.e. not
-      // "time", which uses a live window instead — see _boundsFor).
-      if (this.xMetric !== 'time') this._growRange(this.xRange, x);
-      if (this.yMetric !== 'time') this._growRange(this.yRange, y);
-      if (this.zMetric && this.zMetric !== 'time') this._growRange(this.zRange, z);
+      // Only grow the ratchets for axes that actually use them: not "time"
+      // (live window instead — see _boundsFor) and not a periodic metric
+      // (bounded (-π, π], normalized directly via cos/sin in
+      // _buildSeriesPoint — see above).
+      if (this.xMetric !== 'time' && !isPeriodicMetric(this.xMetric)) this._growRange(this.xRange, x);
+      if (this.yMetric !== 'time' && !isPeriodicMetric(this.yMetric)) this._growRange(this.yRange, y);
+      if (this.zMetric && this.zMetric !== 'time' && !isPeriodicMetric(this.zMetric)) this._growRange(this.zRange, z);
     });
 
-    const xBounds = this._boundsFor(this.xMetric, this.xRange, 'x');
-    const yBounds = this._boundsFor(this.yMetric, this.yRange, 'y');
-    const zBounds = this.zMetric ? this._boundsFor(this.zMetric, this.zRange, 'z') : null;
-
-    const xPeriodic = isPeriodicMetric(this.xMetric);
-    const yPeriodic = isPeriodicMetric(this.yMetric);
-    const zPeriodic = this.zMetric && isPeriodicMetric(this.zMetric);
-
+    const bounds = this._frameBounds();
     const seriesList = bodies.map((body) => {
       const buf = this.history.get(body.name);
-      const points = buf.x.map((xv, idx) => [
-        this._normalize(xv, xBounds),
-        this._normalize(buf.y[idx], yBounds),
-        zBounds ? this._normalize(buf.z[idx], zBounds) : 0,
-      ]);
-      // Break the polyline between two consecutive samples whenever either:
-      //  (a) a periodic (angle) axis wrapped past its branch cut in RAW
-      //      units — this catches φ/ν jumping from ~+π to ~-π even though
-      //      the normalized step for that axis alone might be small if the
-      //      other axis dominates the cube's aspect ratio; or
-      //  (b) the two points' normalized positions are simply far apart in
-      //      the [-1,1] cube — this catches every other kind of "the line
-      //      jumps/clips across the plot" discontinuity (e.g. θ vs speed
-      //      near a close encounter, especially at higher sim speed factors
-      //      where several integrator sub-steps are folded into one plotted
-      //      frame) that isn't a branch-cut wrap at all, just two genuinely
-      //      distant samples that a straight connecting line misrepresents.
-      // See WRAP_THRESHOLD / STEP_BREAK_THRESHOLD above for the reasoning
-      // and empirical bounds behind each check.
-      const breaks = points.map((p, idx) => {
-        if (idx === 0) return false;
-        const wrapped =
-          (xPeriodic && Math.abs(buf.x[idx] - buf.x[idx - 1]) > WRAP_THRESHOLD) ||
-          (yPeriodic && Math.abs(buf.y[idx] - buf.y[idx - 1]) > WRAP_THRESHOLD) ||
-          (zPeriodic && Math.abs(buf.z[idx] - buf.z[idx - 1]) > WRAP_THRESHOLD);
-        if (wrapped) return true;
-        const prev = points[idx - 1];
-        const dx = p[0] - prev[0];
-        const dy = p[1] - prev[1];
-        const dz = p[2] - prev[2];
-        return Math.sqrt(dx * dx + dy * dy + dz * dz) > STEP_BREAK_THRESHOLD;
-      });
+      const points = buf.x.map((_xv, idx) => this._buildSeriesPoint(buf, idx, bounds));
+      // See _isBreak: always checks the generic large-single-frame-step
+      // case; in circular mode also re-checks any periodic slot that
+      // DIDN'T become the ring (the 2+-periodic-axes fallback) since that
+      // one is still plotted as an ordinary linear value and still has a
+      // ±π seam. The ring slot itself never breaks — see _buildSeriesPoint.
+      const breaks = points.map((p, idx) => (idx === 0 ? false : this._isBreak(buf, idx, p, points[idx - 1])));
       return { id: body.name, color: body.color, points, breaks };
     });
     this.plot3d.setSeries(seriesList);
 
-    // Live per-axis value readouts: reuse the x/y/z already computed above
-    // for each body this frame — update the existing text nodes in place
-    // (not innerHTML) so this doesn't thrash layout every frame.
+    // Live per-axis value readouts show the raw current value — for a
+    // periodic axis that's the bounded (-π, π] angle, which reads
+    // intuitively as "what is φ right now" (and is also just what's
+    // buffered, now that there's no separate unwrapped value). Update
+    // existing text nodes in place (not innerHTML) so this doesn't thrash
+    // layout every frame.
     bodies.forEach((body, idx) => {
       const buf = this.history.get(body.name);
       const last = buf.x.length - 1;
