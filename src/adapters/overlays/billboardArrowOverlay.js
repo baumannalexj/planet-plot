@@ -13,7 +13,7 @@ import { ForceFieldCalculator } from '@core/overlays/ForceFieldCalculator.js';
 import { excludeNearBody } from '@adapters/overlays/ratchet.js';
 import { ARROW_STYLES } from '@adapters/overlays/arrowStyles.js';
 
-const MAX_RESOLUTION = 50; // matches ForceFieldOverlay's instance cap
+const MAX_INSTANCES = 20000; // matches ForceFieldOverlay's instance cap
 const RATCHET_EXCLUSION_RADIUS = 1.0;
 const MAX_NORMALIZED_MAGNITUDE = 2;
 const BASE_ARROW_SIZE = 1.0; // world units at magnitude-normalized 1.0, scale 1x
@@ -49,7 +49,7 @@ export class BillboardArrowOverlay extends OverlayRenderer {
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-    this.mesh = new THREE.InstancedMesh(geometry, material, MAX_RESOLUTION ** 3);
+    this.mesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
     this.mesh.visible = displaySettings.showBillboardArrows;
     this.mesh.count = 0; // nothing drawn until the first update()
     scene.add(this.mesh);
@@ -84,8 +84,12 @@ export class BillboardArrowOverlay extends OverlayRenderer {
     }
 
     const points = this.calculator.compute(relBodies, {
-      radius: displaySettings.forceFieldRadius,
-      count: displaySettings.forceFieldCount,
+      drawRadius: displaySettings.drawRadius,
+      radiusIterations: displaySettings.radiusIterations,
+      thetaIterations: displaySettings.thetaIterations,
+      phiIterations: displaySettings.phiIterations,
+      skew: displaySettings.magnitudeModSkewAll,
+      iconCount: displaySettings.iconCount,
     });
 
     for (const p of points) {
@@ -106,7 +110,7 @@ export class BillboardArrowOverlay extends OverlayRenderer {
     for (const p of points) {
       const normalizedMag = Math.min(MAX_NORMALIZED_MAGNITUDE, p.magnitude / this.maxMagnitudeSeen);
       const displayedMag = Math.min(MAX_NORMALIZED_MAGNITUDE, Math.pow(Math.max(0, normalizedMag), gamma));
-      const size = Math.max(0, displayedMag * BASE_ARROW_SIZE);
+      const size = Math.max(0, displayedMag * BASE_ARROW_SIZE * displaySettings.magnitudeModForceField);
       if (size <= 1e-6) continue;
 
       this._position.copy(this.toThree(p.position));

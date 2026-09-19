@@ -59,8 +59,12 @@ export class FieldLinesOverlay extends OverlayRenderer {
     if (!displaySettings.showFieldLines) return;
 
     const streamlines = this.calculator.compute(relBodies, {
-      radius: displaySettings.fieldLinesRadius,
-      count: displaySettings.fieldLinesCount,
+      drawRadius: displaySettings.drawRadius,
+      radiusIterations: displaySettings.radiusIterations,
+      thetaIterations: displaySettings.thetaIterations,
+      phiIterations: displaySettings.phiIterations,
+      skew: displaySettings.magnitudeModSkewAll,
+      iconCount: displaySettings.iconCount,
     });
 
     this._disposeLines();
