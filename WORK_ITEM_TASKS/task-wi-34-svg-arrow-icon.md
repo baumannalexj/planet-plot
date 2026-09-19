@@ -29,8 +29,24 @@ Add a 3rd `ARROW_STYLES` entry in `src/adapters/overlays/arrowStyles.js` that re
 - `src/adapters/overlays/arrowStyles.js` — add the 3rd drawing function and export
 
 ## Acceptance check
-- [ ] SVG arrow icon sourced
-- [ ] Rasterization into canvas context working
-- [ ] New style selectable in the UI dropdown
-- [ ] Tests passing
-- [ ] Build passing
+- [x] SVG arrow icon sourced
+- [x] Rasterization into canvas context working
+- [x] New style selectable in the UI dropdown
+- [x] Tests passing
+- [x] Build passing
+
+## Implementation notes
+
+- The SVG markup is self-authored inline (a rounded-cap shaft + rounded-join
+  chevron head), not fetched from an external source — this sidesteps any
+  licensing question and avoids a network dependency in the build/runtime.
+- `drawSvg(ctx, size)` kicks off an async `Image` decode of a
+  `data:image/svg+xml` URI once (module-level cache) and calls
+  `ctx.drawImage` once decoded. Since the existing style functions are
+  synchronous and image decoding is not, `drawSvg` falls back to
+  `drawChevron`'s shape on any call before the first decode completes, so
+  the texture is never blank. In practice the decode finishes well before a
+  user manually switches the dropdown to `svg`, since the image starts
+  loading at module import time (app startup).
+- Added `'svg'` to the `choices` array for the `arrowStyle` `SelectDisplayOption`
+  in `src/app/displayOptions.js` so it's reachable from the dropdown.
