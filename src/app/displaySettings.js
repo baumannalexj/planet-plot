@@ -49,6 +49,8 @@ class DisplaySettings {
     this.showFieldLines = false;
     /** Field-lines rendered length/arrow-spacing multiplier — mirrors forceFieldScale. */
     this.fieldLinesScale = 1;
+    /** Field-line direction-marker style — 'cone' (3D-oriented ConeGeometry, default) or 'svg-barb' (camera-facing SVG-rasterized barb billboards). Distinct from the unrelated billboard force-field arrowStyle above. */
+    this.fieldLineArrowStyle = 'cone';
 
     // --- Shared adaptive spherical-shell discretization (Task 25) ---
     // Replaces the old per-overlay forceFieldRadius/forceFieldCount/
