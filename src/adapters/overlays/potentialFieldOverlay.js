@@ -4,11 +4,19 @@ import { displaySettings } from '@app/displaySettings.js';
 import { PotentialFieldCalculator } from '@core/overlays/PotentialFieldCalculator.js';
 import { excludeNearBody } from '@adapters/overlays/ratchet.js';
 
-const GRID_EXTENT = 20;
 const ATTRACTIVE_COLOR = new THREE.Color(0x9f7aea);
 const ZERO_COLOR = new THREE.Color(0x4a5568);
 const RATCHET_EXCLUSION_RADIUS = 1.0;
 const MAX_NORMALIZED_MAGNITUDE = 2;
+const FADE_START_FRACTION = 0.6;
+
+// Cylindrical (hypot(x,y), no z) fade toward transparent near the draw radius —
+// a smoothstep, not a hard clip, so the mesh's edge doesn't read as a sharp ring.
+function radialFade(x, y, r) {
+  const d = Math.hypot(x, y);
+  const t = THREE.MathUtils.clamp((d - FADE_START_FRACTION * r) / (r - FADE_START_FRACTION * r), 0, 1);
+  return 1 - THREE.MathUtils.smoothstep(t, 0, 1);
+}
 
 export class PotentialFieldOverlay extends OverlayRenderer {
   constructor(scene, toThree) {
@@ -25,6 +33,7 @@ export class PotentialFieldOverlay extends OverlayRenderer {
     this.material = null;
     this.mesh = null;
     this.currentResolution = -1;
+    this.currentRadius = -1;
 
     displaySettings.onChange((s) => {
       this.group.visible = s.showPotentialField;
@@ -39,10 +48,12 @@ export class PotentialFieldOverlay extends OverlayRenderer {
       this.geometry.dispose();
       this.material.dispose();
     }
-    this.geometry = new THREE.PlaneGeometry(GRID_EXTENT * 2, GRID_EXTENT * 2, resolution - 1, resolution - 1);
+    const extent = displaySettings.potentialFieldRadius;
+    this.geometry = new THREE.PlaneGeometry(extent * 2, extent * 2, resolution - 1, resolution - 1);
     const positions = this.geometry.attributes.position.array;
-    const colors = new Float32Array(positions.length);
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const vertexCount = positions.length / 3;
+    const colors = new Float32Array(vertexCount * 4);
+    this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4));
     this.material = new THREE.MeshBasicMaterial({
       vertexColors: true,
       side: THREE.DoubleSide,
@@ -53,16 +64,18 @@ export class PotentialFieldOverlay extends OverlayRenderer {
     this.mesh.rotation.x = -Math.PI / 2;
     this.group.add(this.mesh);
     this.currentResolution = resolution;
+    this.currentRadius = extent;
   }
 
   update(relBodies) {
     if (!displaySettings.showPotentialField) return;
 
     const resolution = Math.max(4, Math.round(displaySettings.potentialFieldResolution));
-    if (resolution !== this.currentResolution) this.buildMesh(resolution);
+    const radius = displaySettings.potentialFieldRadius;
+    if (resolution !== this.currentResolution || radius !== this.currentRadius) this.buildMesh(resolution);
 
     const points = this.calculator.compute(relBodies, {
-      extent: GRID_EXTENT,
+      extent: radius,
       resolution,
       z: displaySettings.potentialFieldZ,
     });
@@ -91,10 +104,11 @@ export class PotentialFieldOverlay extends OverlayRenderer {
 
       const t = Math.max(0, -normalizedVal);
       const color = new THREE.Color().lerpColors(ZERO_COLOR, ATTRACTIVE_COLOR, t);
-      const colIdx = i * 3;
+      const colIdx = i * 4;
       colArray[colIdx] = color.r;
       colArray[colIdx + 1] = color.g;
       colArray[colIdx + 2] = color.b;
+      colArray[colIdx + 3] = radialFade(p.position[0], p.position[1], radius);
     });
 
     posAttr.needsUpdate = true;

@@ -35,6 +35,8 @@ class DisplaySettings {
     this.showPotentialField = false;
     /** Potential-field z-plane offset for sampling. */
     this.potentialFieldZ = 0;
+    /** Potential-field/equipotential-lines draw radius — sample extent + fade-to-transparent distance (AU). Replaces the old hardcoded GRID_EXTENT. */
+    this.potentialFieldRadius = 20;
     /** Potential-field displacement magnitude multiplier. */
     this.potentialFieldScale = 1;
     /** Potential-field sample grid resolution (samples per side). */
