@@ -41,6 +41,10 @@ class DisplaySettings {
     this.showEquipotentialLines = false;
     /** Number of equipotential contour lines to draw. */
     this.equipotentialLineCount = 5;
+    /** Compute + render the effective (Jacobi) potential in the two primaries' rotating frame — shares the potential field's grid/radius/z settings above. */
+    this.showJacobiPotential = false;
+    /** Jacobi-potential displacement magnitude multiplier — mirrors potentialFieldScale. */
+    this.jacobiPotentialScale = 1;
     /** Compute + render gravitational field-line streamlines from seeds around each body. */
     this.showFieldLines = false;
     /** Field-lines rendered length/arrow-spacing multiplier — mirrors forceFieldScale. */

@@ -145,18 +145,23 @@ export function mountGravitationalPotentialPanel(container) {
   pillsRow.className = 'gpp-pills';
   const surfacePill = makePill('Grav potential', 'showPotentialField');
   const linesPill = makePill('Equipotential lines', 'showEquipotentialLines');
+  const jacobiPill = makePill('Jacobi potential', 'showJacobiPotential');
   pillsRow.appendChild(surfacePill.pill);
   pillsRow.appendChild(linesPill.pill);
+  pillsRow.appendChild(jacobiPill.pill);
   root.appendChild(pillsRow);
 
   const scaleInput = makeSlider(root, 'potentialFieldScale', 'Scale', { min: -10, max: 30, step: 1 });
+  const jacobiScaleInput = makeSlider(root, 'jacobiPotentialScale', 'Jacobi scale', { min: -10, max: 30, step: 1 });
   const lineCountInput = makeSlider(root, 'equipotentialLineCount', 'Number of lines', { min: 2, max: 20, step: 1 });
   const zInput = makeSlider(root, 'potentialFieldZ', 'Z offset', { min: -20, max: 20, step: 0.5 });
 
   displaySettings.onChange((s) => {
     surfacePill.sync(s.showPotentialField);
     linesPill.sync(s.showEquipotentialLines);
+    jacobiPill.sync(s.showJacobiPotential);
     scaleInput.value = String(s.potentialFieldScale);
+    jacobiScaleInput.value = String(s.jacobiPotentialScale);
     lineCountInput.value = String(s.equipotentialLineCount);
     zInput.value = String(s.potentialFieldZ);
   });

@@ -17,6 +17,7 @@ import { ForceFieldOverlay } from '@adapters/overlays/forceFieldOverlay.js';
 import { BillboardArrowOverlay } from '@adapters/overlays/billboardArrowOverlay.js';
 import { PotentialFieldOverlay } from '@adapters/overlays/potentialFieldOverlay.js';
 import { EquipotentialLinesOverlay } from '@adapters/overlays/equipotentialLinesOverlay.js';
+import { JacobiPotentialOverlay } from '@adapters/overlays/jacobiPotentialOverlay.js';
 import { FieldLinesOverlay } from '@adapters/overlays/fieldLinesOverlay.js';
 
 const TRAIL_LENGTH = 600;
@@ -196,6 +197,7 @@ export function mountViewport(el, store) {
   const billboardArrowOverlay = new BillboardArrowOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
   const potentialFieldOverlay = new PotentialFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
   const equipotentialLinesOverlay = new EquipotentialLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const jacobiPotentialOverlay = new JacobiPotentialOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
   const fieldLinesOverlay = new FieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
 
   // --- Render loop -------------------------------------------------------
@@ -213,6 +215,7 @@ export function mountViewport(el, store) {
       billboardArrowOverlay.update(relBodies);
       potentialFieldOverlay.update(relBodies);
       equipotentialLinesOverlay.update(relBodies);
+      jacobiPotentialOverlay.update(relBodies);
       fieldLinesOverlay.update(relBodies);
       relBodies.forEach((b, i) => {
         const entry = entries[i];
