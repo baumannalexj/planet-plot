@@ -1350,7 +1350,75 @@ starts inside the boundary (no visible sharp ring).
 
 ---
 
-## Task 25: Shared adaptive spherical-shell discretization [worktree: task-25-shell-discretization]
+## Task 25: Shared adaptive spherical-shell discretization [worktree ready: task-25-shell-discretization]
+
+**Verified:** `yarn test` 26/26, `yarn build` clean, in the
+`task-25-shell-discretization` worktree. Not exercised live in `yarn dev` —
+sanity-checked instead via `vite-node` scratch scripts: confirmed
+`shellRingSizes` exactly matches `computeShellGrid`'s per-shell point counts
+(both gave 20 for `radiusIterations=4, thetaIterations=8, skew=1.5`, ring
+sizes `[8,4,4,4]`), and that `skew=1.5` vs `skew=0` visibly changes total
+sampled point count (96 vs 192 for the same iteration settings, confirming
+higher skew concentrates density toward the center as intended).
+
+**Files touched:** new `src/core/overlays/DiscretizationGrid.js`
+(`computeShellGrid` per the spec, verbatim; `shellRingSizes`, a small helper
+so consumers can re-derive shell/ring structure from the flat `points` array
+`computeShellGrid` returns; `decimateToLimit`, the `iconCount` hard
+render-count ceiling). `ForceFieldCalculator.js`/`FieldLinesCalculator.js`
+now sample/seed via `computeShellGrid` (non-planar) centered on the bodies'
+center of mass, decimated to `iconCount` before evaluating
+`accelerationAt`/tracing. `PotentialFieldCalculator.js` samples via
+`computeShellGrid` (planar) centered at `[com.x, com.y, potentialFieldZ]` —
+deliberately does NOT apply `iconCount` decimation, since
+`EquipotentialLinesCalculator`/the surface mesh both need its full,
+structurally-predictable ring layout. `accelerationAt`/`potentialAt` in
+every calculator still sum over every body in `bodies` unconditionally —
+`drawRadius` only bounds where sample points are placed, never which bodies
+contribute to the force/potential sum (gravity has infinite range, per the
+mid-task coordination note added to this file's rule 8).
+
+**Equipotential-lines adjacency (the flagged risk):** the old marching-squares
+code assumed a flat rectangular `points[i*resolution+j]` grid from
+`PotentialFieldCalculator`, which no longer holds now that sampling moved to
+shells of rings. Went with the simpler first-pass fallback the task doc
+explicitly sanctioned rather than a full redesign: within a shell, cells span
+angularly-adjacent ring points; between two adjacent shells, each inner-ring
+point is matched to the point at the *proportionally* nearest theta index on
+the outer ring (ring sizes can differ across shells when `skew != 0`, so this
+is an approximate angle-match, not an exact geometric nearest-neighbor).
+Known limitations, called out in the class doc comment: no contour fill
+inside the innermost shell or outside the outermost, and the proportional
+theta-match is only approximate when adjacent shells have different ring
+point counts. `PotentialFieldOverlay`'s surface mesh hit the identical
+rectangular-grid assumption (its old code fed a `PlaneGeometry` built with
+fixed row/col segments) — not explicitly flagged in the task doc, but the
+same underlying break, so it got the same treatment: rebuilt as a
+non-indexed triangle-list `BufferGeometry` triangulated between adjacent
+shells using the identical ring-adjacency scheme, with the same "small
+unfilled hole at the very center" limitation noted in its doc comment.
+
+**UI:** new `src/viewport/discretizationPanel.js` (bottom-left, mirrors
+`gravitationalPotentialPanel.js`'s self-contained mount pattern), one slider
+per shared setting (`drawRadius`, `radiusIterations`, `thetaIterations`,
+`phiIterations`, `magnitudeModSkewAll`, `iconCount`,
+`magnitudeModForceField`, `magnitudeModPotential`,
+`magnitudeModEquipotentialLines`), mounted in `viewport.js` alongside the
+other two panels. `displaySettings.js`/`displayOptions.js`: removed
+`forceFieldRadius`/`forceFieldCount`/`potentialFieldResolution`/
+`fieldLinesRadius`/`fieldLinesCount` and their control entries, per the
+task's explicit replacement list; `potentialFieldScale`/`potentialFieldZ`/
+`equipotentialLineCount`/`forceFieldScale`/`fieldLinesScale` left untouched
+(orthogonal). The 3 `magnitudeMod*` per-overlay-type settings are applied as
+an extra multiplier on top of each overlay's existing scale/opacity handling
+(rendered-magnitude axis, separate from sampling density).
+
+**Process note:** based the worktree off `feat/simulator-mvp` as instructed,
+but mid-task the shared checkout's uncommitted work (all the overlay/adapter
+infrastructure this task builds on) got checkpointed into that branch as a
+new commit (`fe73099`) — had to fast-forward the work branch onto that
+before any of `src/core/overlays`/`src/adapters/overlays` existed to build
+on. Branch is `task-25-shell-discretization`.
 
 **Research verdict (resolved, implement exactly):** power-law radial spacing and `1/r^v`
 density skew are the SAME idea (shell volume ~r²dr ⇒ `r_i = R*(i/N)^p` with `p=1/(3-skew)`,
