@@ -1235,7 +1235,14 @@ from the mass-weighted CoM). Live `yarn dev` visual check not done — every bro
 
 ---
 
-## Task 21: Rotational bodies — spin + ψ/ψ̇ readouts [worktree ready: task-21-rotational-bodies]
+## Task 21: Rotational bodies — spin + ψ/ψ̇ readouts [done: merged into feat/simulator-mvp as bfd30c5 — branch/worktree consolidated and removed]
+
+**Merge note:** this branch was left mid-conflict on disk by an earlier merge attempt —
+`src/plots/metrics.js`/`src/viewport/objectPanel.js` had literal unresolved `<<<<<<<`
+markers committed straight into `feat/simulator-mvp`, which broke `yarn test`/`yarn build`
+for everyone (Rollup parse error) until found and fixed this session. Resolved by keeping
+both sides' additions (this branch's spin/ψ metrics + a sibling branch's already-landed
+constants-modifier reference span), verified clean after.
 
 **Goal:** implement the V1 recommended in the "Research: Rotational bodies" entry above —
 a constant decorative spin per body (kinematic, zero coupling to `Simulation.step()`/RK4,
@@ -1571,7 +1578,7 @@ findings, not left as another unfilled brief for the next session.
 
 ---
 
-## Task 29: Shared, user-selectable coordinate system (bodies panel + plots) [claimed: task-29-coord-system]
+## Task 29: Shared, user-selectable coordinate system (bodies panel + plots) [worktree ready: task-29-coord-system]
   - claimed by task-29-coord-system
 
 **Goal:** resolve two related WORK_ITEMS.md asks — "'bodies' and 'plot' should share
@@ -1584,31 +1591,49 @@ shared/global selection. `src/viewport/objectPanel.js`'s Calc readout grid, by c
 `const CALC_COORD_SYSTEM = 'spherical'` HARDCODED with no selector at all — this is the actual
 gap "bodies and plot should share coordinate system" is pointing at.
 
-**1. Promote to a shared setting** — add a `coordSystemId` field to the shared
-`displaySettings` singleton (`src/app/displaySettings.js`), default `'cartesian'` (matches
-`DEFAULT_COORD_SYSTEM`). This becomes the ONE shared selection multiple views read from,
-same pattern as every other cross-view setting in that file.
+**Implemented exactly as scoped — override approach chosen for #3, per the recommendation:**
 
-**2. `objectPanel.js`** — replace the hardcoded `CALC_COORD_SYSTEM` constant with
-`displaySettings.coordSystemId` (read live in the `computeMetric(id, relBody, snapshot,
-CALC_COORD_SYSTEM)` call inside `store.onFrame`), AND add a coordinate-system `<select>`
-somewhere in the panel (there is currently no UI for this at all) that writes to
-`displaySettings.set('coordSystemId', ...)` — reuse `COORD_SYSTEMS`'s keys as the option list,
-same enumeration `plotPanel.js`'s own `coordSelect` already uses.
+**1.** `src/app/displaySettings.js`: added `coordSystemId` (imports `DEFAULT_COORD_SYSTEM`
+from `@core/coordinates.js` for the default, so it stays in sync with that constant rather
+than duplicating the literal `'cartesian'` string).
 
-**3. `plotPanel.js`** — decide (and say which, don't silently pick): does each `PlotCard` KEEP
-its own independent `coordSystemId` (current behavior, useful if the user wants to compare a
-body in cartesian on one plot and spherical on another), or does the per-card selector become
-a per-card OVERRIDE of a shared default (`coordSystemId` initializes from
-`displaySettings.coordSystemId` but can still be changed independently per card)? Recommend
-the override approach — it satisfies "share" (new cards start in sync) without breaking the
-existing per-card flexibility (a user who explicitly changes one card's dropdown keeps that
-choice, no click-elsewhere resets it).
+**2.** `src/viewport/objectPanel.js`: removed the hardcoded `CALC_COORD_SYSTEM` const, the
+`computeMetric(...)` call now reads `displaySettings.coordSystemId` live. Added a new
+`<select>` row ("Coordinates:") right below the "Bodies" heading, same option-population
+pattern as `plotPanel.js`'s `coordSelect` (`Object.values(COORD_SYSTEMS)`), writes via
+`displaySettings.set('coordSystemId', ...)`, syncs back via `displaySettings.onChange`
+(skipped while the select itself has focus, same "don't clobber while active" convention
+used elsewhere in this file).
 
-**Acceptance check:** `yarn test` passes, `yarn build` succeeds. `yarn dev`, change the new
-shared coordinate-system control, confirm the object panel's Calc grid AND newly-created plot
-cards all reflect it, and an existing plot card's independently-changed selector isn't
-silently overridden.
+**3.** `src/plots/plotPanel.js`: `PlotInstance`'s `coordSystemId` now initializes from
+`displaySettings.coordSystemId` instead of the bare `DEFAULT_COORD_SYSTEM` constant — chose
+the OVERRIDE approach (new cards start in sync with the shared setting; an existing card's
+independently-changed selector is never clobbered, since nothing re-reads
+`displaySettings.coordSystemId` after construction). The special-cased default-first-plot
+override (`plot.coordSystemId = 'spherical'`, a few lines below) is unaffected — it already
+runs AFTER construction and still wins, same as before.
+
+**Known display quirk (expected, not a bug):** `objectPanel.js`'s `CALC_METRICS` list is a
+fixed set of ids (`r`/`theta`/`phi`/`rdot`/etc., spherical-flavored). Switching the shared
+coordinate system to `cartesian` makes those rows compute to `NaN` (an axis id not present in
+`cartesian`'s `COORD_SYSTEMS.cartesian.axes`) and render as `—`, same as any other
+undefined-metric case already handled in this file. Making `CALC_METRICS` itself
+coordinate-system-aware (swapping which rows show up) was out of scope for this task — noting
+it in case the user wants that as a fast follow-up.
+
+**Verified:** `yarn test` 26/26, `yarn build` clean. Live `yarn dev` visual check not done —
+every browser MCP (chrome-devtools, playwright, isolated context attempts) locked by other
+concurrent sessions. Confirmed by code reading: `_buildDom()` runs after `this.coordSystemId`
+is set in `PlotInstance`'s constructor, so the per-card select's initial value correctly
+reflects the shared default; no circular import risk (`coordinates.js` has zero imports of
+its own).
+
+**Files touched (commit is scoped to exactly these — this worktree's rsync copy also picked
+up 3 other files' uncommitted, NOT-MINE changes from the shared checkout —
+`equipotentialLinesOverlay.js`/`potentialFieldOverlay.js`/`gravitationalPotentialPanel.js`,
+presumably Task 23's fade work in progress — deliberately left untouched/uncommitted here,
+not part of this task):** `src/app/displaySettings.js`, `src/viewport/objectPanel.js`,
+`src/plots/plotPanel.js`.
 
 ---
 
