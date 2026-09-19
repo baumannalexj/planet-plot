@@ -12,13 +12,7 @@ import { displaySettings } from '../app/displaySettings.js';
 import { mountDisplayControls } from './displayControls.js';
 import { mountGravitationalPotentialPanel } from './gravitationalPotentialPanel.js';
 import { mountDiscretizationPanel } from './discretizationPanel.js';
-import { LagrangePointsOverlay } from '@adapters/overlays/lagrangePointsOverlay.js';
-import { ForceFieldOverlay } from '@adapters/overlays/forceFieldOverlay.js';
-import { BillboardArrowOverlay } from '@adapters/overlays/billboardArrowOverlay.js';
-import { PotentialFieldOverlay } from '@adapters/overlays/potentialFieldOverlay.js';
-import { EquipotentialLinesOverlay } from '@adapters/overlays/equipotentialLinesOverlay.js';
-import { JacobiPotentialOverlay } from '@adapters/overlays/jacobiPotentialOverlay.js';
-import { FieldLinesOverlay } from '@adapters/overlays/fieldLinesOverlay.js';
+import { overlayRendererProvider } from '../provider/OverlayRendererProvider.js';
 
 const TRAIL_LENGTH = 600;
 const MIN_RADIUS = 0.15;
@@ -192,13 +186,13 @@ export function mountViewport(el, store) {
   // potential panel (top-right) — see discretizationPanel.js.
   mountDiscretizationPanel(el);
 
-  const lagrangeOverlay = new LagrangePointsOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const forceFieldOverlay = new ForceFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const billboardArrowOverlay = new BillboardArrowOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
-  const potentialFieldOverlay = new PotentialFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const equipotentialLinesOverlay = new EquipotentialLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const jacobiPotentialOverlay = new JacobiPotentialOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const fieldLinesOverlay = new FieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
+  const lagrangeOverlay = overlayRendererProvider.provideLagrangePointsOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const forceFieldOverlay = overlayRendererProvider.provideForceFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const billboardArrowOverlay = overlayRendererProvider.provideBillboardArrowOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
+  const potentialFieldOverlay = overlayRendererProvider.providePotentialFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const equipotentialLinesOverlay = overlayRendererProvider.provideEquipotentialLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const jacobiPotentialOverlay = overlayRendererProvider.provideJacobiPotentialOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const fieldLinesOverlay = overlayRendererProvider.provideFieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
 
   // --- Render loop -------------------------------------------------------
   const tmp = new THREE.Vector3();
