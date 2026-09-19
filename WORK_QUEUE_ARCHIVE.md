@@ -1374,3 +1374,12 @@ each streamline (reuses BillboardArrowOverlay's camera-basis quaternion construc
 `yarn test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Live
 `yarn dev` visual check not done. Full task doc archived at
 `WORK_ITEM_TASKS/archive/task-wi-26-svg-fieldline-arrows.md`.
+
+## task-wi-34-svg-arrow-icon [DONE: merged into feat/simulator-mvp as 8dc71c0]
+
+3rd `ARROW_STYLES` entry (`svg`) in `arrowStyles.js` — self-authored inline SVG (rounded shaft
++ chevron head, no external source/licensing concern), rasterized once via `Image` +
+`data:image/svg+xml` decode + `drawImage`, falls back to the existing chevron shape on any
+call before the async decode resolves. Added to the `arrowStyle` dropdown's choices. `yarn
+test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Full task doc
+archived at `WORK_ITEM_TASKS/archive/task-wi-34-svg-arrow-icon.md`.
