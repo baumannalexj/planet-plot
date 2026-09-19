@@ -1357,3 +1357,11 @@ branch tip (60ee538) and reconciling with Task 23's already-merged draw-radius f
 was ported into the new triangle-list mesh with a 4-component (RGBA) vertex-color
 attribute. `yarn test` 26/26, `yarn build` clean, post-rebase and post-merge. Full task doc
 archived at `WORK_ITEM_TASKS/archive/task-wi-25-shell-discretization.md`.
+
+## task-wi-29-shared-coord-system [DONE: merged into feat/simulator-mvp as c4c16e7]
+
+Rebased onto current tip (was based on a stale ref), verified diff matched the branch's own
+report exactly (displaySettings.js/plotPanel.js/objectPanel.js only), fast-forward merged by
+team-lead. `yarn test` 26/26, `yarn build` clean, re-verified in the shared checkout
+post-merge. Full task doc archived at
+`WORK_ITEM_TASKS/archive/task-wi-29-shared-coord-system.md`.

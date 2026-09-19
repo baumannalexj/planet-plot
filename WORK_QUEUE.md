@@ -5,8 +5,6 @@ task detail, `WORK_QUEUE_ARCHIVE.md` for completed work (Tasks 1-22, 27).
 
 * task-wi-26-svg-fieldline-arrows | WORK_ITEM_TASKS/task-wi-26-svg-fieldline-arrows.md | status: TODO
 * task-wi-28-provider-di-viewcontroller | WORK_ITEM_TASKS/task-wi-28-provider-di-viewcontroller.md | status: TODO
-* task-wi-29-shared-coord-system | WORK_ITEM_TASKS/task-wi-29-shared-coord-system.md | status: READY_FOR_MERGE: task-29-coord-system
-  - claimed by task-29-coord-system
 * task-wi-30-mesh-vs-surface | WORK_ITEM_TASKS/task-wi-30-mesh-vs-surface.md | status: BLOCKED: needs the human to describe what "mesh" vs "surface" should each look like
 * task-wi-31-jacobi-potential | WORK_ITEM_TASKS/task-wi-31-jacobi-potential.md | status: ASSIGNED
   - claimed by planet-plot-f2
