@@ -1,0 +1,149 @@
+/* Right plotting panel styles. Scoped under #plot-panel to avoid leaking into
+ * the rest of the app. Reuses the global --panel/--border/--text/--muted
+ * custom properties defined in src/styles.css so the panel matches the
+ * app-wide dark theme automatically. */
+
+#plot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plot-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plot-panel__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--accent);
+}
+
+.plot-add-btn {
+  background: var(--accent);
+  color: #0b0d12;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.plot-add-btn:hover {
+  filter: brightness(1.1);
+}
+
+.plot-card {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plot-card__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.plot-card__controls select {
+  background: var(--border);
+  color: var(--text);
+  border: 1px solid #4a5568;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+/* Coordinate-system select on its own row, Remove pinned to the right —
+ * kept separate from the axis grid below so it can't affect its alignment. */
+.plot-card__coord-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plot-card__coord-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* X/Y/Z as a 3-column (label | select | live-value readout) grid: the three
+ * selects share one left edge and one width instead of wrapping mid-row like
+ * a plain flex layout did. The readout column has a fixed-ish min-width so
+ * changing values don't jitter the grid as digits/signs come and go. */
+.plot-card__axis-grid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px 8px;
+}
+.plot-card__axis-label {
+  text-align: left;
+}
+
+/* Live per-body value readout next to each axis dropdown — small, unobtrusive,
+ * tabular-nums so digits don't shift width frame to frame. */
+.plot-card__readout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 64px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.plot-card__readout-dots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.plot-card__readout-dot {
+  /* `color` here tints both the "●" glyph and the value text so each body's
+   * live value is color-matched to its series/dropdown-swatch color. */
+  white-space: nowrap;
+}
+.plot-card__readout-unit {
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.plot-remove-btn {
+  flex: none;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.plot-remove-btn:hover {
+  color: #fc8181;
+  border-color: #fc8181;
+}
+
+.plot-3d-wrap {
+  position: relative;
+  height: 220px;
+}
+.plot-3d-wrap canvas {
+  cursor: grab;
+}
+.plot-3d-wrap canvas:active {
+  cursor: grabbing;
+}
+
+.plot-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 8px 0;
+}

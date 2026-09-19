@@ -1,0 +1,245 @@
+:root {
+  --bg: #11141a;
+  --panel: #161b26;
+  --panel-2: #1a1f2c;
+  --border: #2d3748;
+  --text: #e2e8f0;
+  --muted: #a0aec0;
+  --accent: #63b3ed;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+#app-header h1 { margin: 0; font-size: 1.3rem; color: var(--accent); }
+
+#controls { display: flex; align-items: center; gap: 10px; }
+#controls label { color: var(--muted); font-size: 0.85rem; }
+
+select, button {
+  background: var(--border);
+  color: var(--text);
+  border: 1px solid #4a5568;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+button:hover { background: #3a4657; }
+
+#speed-value {
+  color: var(--text);
+  font-size: 0.85rem;
+  /* Fixed width (sized to the widest label, e.g. "1/100x") so switching
+     between short ("4x") and long ("1/100x") labels never shifts the
+     Pause/Reset/time controls that follow it in the flex row. */
+  display: inline-block;
+  width: 7ch;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#sim-time {
+  color: var(--muted);
+  font-size: 0.85rem;
+  /* Fixed width for the same reason as #speed-value: days->years text is a
+     different length and shouldn't nudge neighboring controls. */
+  display: inline-block;
+  width: 26ch;
+  white-space: nowrap;
+  overflow: hidden;
+  margin-left: 4px;
+}
+
+#energy-ratio {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  /* Fixed width, same reasoning as #speed-value/#sim-time: the value/ratio
+     text length varies as the sim runs and shouldn't shift other controls. */
+  display: inline-block;
+  width: 24ch;
+  white-space: nowrap;
+  overflow: hidden;
+  margin-left: 4px;
+  transition: color 0.2s ease;
+}
+
+/* Color cues mirror the notification levels: normal/muted near 100%, amber
+   past ENERGY_DRIFT_CAUTION_RATIO, red past ENERGY_DRIFT_WARN_RATIO (the
+   same threshold that fires the drift warning notification). */
+#energy-ratio.energy-ratio--caution { color: #f6ad55; }
+#energy-ratio.energy-ratio--warning { color: #fc8181; }
+
+#energy-break-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fc8181;
+  background: rgba(252, 129, 129, 0.12);
+  border: 1px solid #fc8181;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+#energy-break-badge[hidden] { display: none; }
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 6px;
+  background: var(--border);
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 6px;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  cursor: pointer;
+  margin-top: -1px;
+}
+
+input[type='range']::-moz-range-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 6px;
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  cursor: pointer;
+}
+
+input[type='range']::-moz-range-progress {
+  background: var(--accent);
+  height: 6px;
+  border-radius: 6px;
+}
+
+#notifications {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Empty list takes no visible space; only grows a gutter when items exist. */
+}
+
+#notifications:empty {
+  display: none;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  font-size: 0.85rem;
+}
+
+.notification--info { border-left-color: var(--accent); }
+.notification--warning { border-left-color: #f6ad55; }
+.notification--error { border-left-color: #fc8181; }
+
+.notification__message {
+  flex: 1;
+  color: var(--text);
+}
+
+.notification__dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.notification__dismiss:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+#app-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#object-panel {
+  width: 240px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+#viewport {
+  flex: 1;
+  position: relative;
+  background: #0b0d12;
+  min-width: 0;
+}
+
+#plot-panel {
+  width: 40%;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+#work-items {
+  display: flex;
+  gap: 20px;
+  padding: 12px 20px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.work-items__col { flex: 1; min-width: 0; }
+.work-items__col h2 { margin: 0 0 6px; font-size: 0.9rem; color: var(--accent); }
+.work-items__col ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.work-items__col li { margin-bottom: 4px; }

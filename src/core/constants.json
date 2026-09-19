@@ -1,0 +1,10 @@
+{
+  "G_REAL": { "value": 6.6743e-11, "unit": "m^3 kg^-1 s^-2" },
+  "SOLAR_MASS_KG": { "value": 1.98892e30, "unit": "kg" },
+  "AU_M": { "value": 1.495978707e11, "unit": "m" },
+  "SECONDS_PER_DAY": { "value": 86400, "unit": "s" },
+  "DAYS_PER_YEAR": { "value": 365.25, "unit": "days" },
+  "UNIT_MASS_SOLAR": { "value": 1, "unit": "solar mass" },
+  "UNIT_LENGTH_AU": { "value": 1, "unit": "AU" },
+  "SOFTENING": { "value": 1e-3, "unit": "AU (simulation length units)" }
+}

@@ -1,0 +1,10 @@
+{
+  "features": [
+    "Preset orbital configurations (one-body, two-body, three-body figure-8, non-planar, Earth/Moon/Sun, three-body + moon)",
+    "3D viewport with object panel and plotting panel",
+    "Play/pause, reset, speed, and origin-frame controls",
+    "Energy-drift monitoring with notifications"
+  ],
+  "todos": [],
+  "bugs": []
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+.vite/
+*.log
+log/
+.idea/
+.playwright-mcp/
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnp.*
