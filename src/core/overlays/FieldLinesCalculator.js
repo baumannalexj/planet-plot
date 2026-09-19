@@ -1,8 +1,7 @@
 import { FieldCalculator } from '@api/FieldCalculator.js';
 import { G } from '@core/Simulation.js';
 import { SOFTENING } from '@core/constants.js';
-
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+import { computeShellGrid, decimateToLimit } from '@core/overlays/DiscretizationGrid.js';
 
 const STEP_SIZE = 0.15;
 const MAX_STEPS = 200;
@@ -30,6 +29,10 @@ function normalize(v) {
   return [v[0] / m, v[1] / m, v[2] / m];
 }
 
+// Sums over EVERY body, unbounded — gravity has infinite range. `radius`
+// below is a tracing/rendering stop condition only (how far a streamline may
+// travel from the CoM before we stop drawing it), never a cutoff on which
+// bodies contribute to this sum.
 function accelerationAt(position, bodies) {
   let ax = 0, ay = 0, az = 0;
   for (const b of bodies) {
@@ -57,14 +60,6 @@ function centerOfMass(bodies) {
   return [mx / totalMass, my / totalMass, mz / totalMass];
 }
 
-function fibonacciSpherePoint(k, n) {
-  const denom = n > 1 ? n - 1 : 1; // n=1 would divide by 0; pin the single seed to the pole instead
-  const yFrac = 1 - (k / denom) * 2;
-  const radiusAtY = Math.sqrt(Math.max(0, 1 - yFrac * yFrac));
-  const theta = GOLDEN_ANGLE * k;
-  return [Math.cos(theta) * radiusAtY, yFrac, Math.sin(theta) * radiusAtY];
-}
-
 function nearestBodyDistance(position, bodies) {
   let minDist = Infinity;
   for (const b of bodies) {
@@ -76,29 +71,27 @@ function nearestBodyDistance(position, bodies) {
 
 export class FieldLinesCalculator extends FieldCalculator {
   /**
-   * Trace gravitational field-line streamlines from seed points distributed
-   * on a sphere around the bodies' center of mass.
+   * Trace gravitational field-line streamlines from seed points placed on an
+   * adaptive spherical shell grid (see DiscretizationGrid.computeShellGrid)
+   * centered on the bodies' center of mass — replaces the old flat
+   * Fibonacci-sphere seeding so field-line seed density follows the same
+   * shell/skew schedule as the other 3 calculators.
    * @param {{position: number[], mass: number}[]} bodies
-   * @param {{radius: number, count: number}} opts  radius = "sphere of draw"
-   *   — both the seed-placement radius (a Fibonacci-sphere shell centered on
-   *   the mass-weighted center of mass, not per-body) AND the max distance
-   *   from that same center a streamline may travel before being cut off;
-   *   count = total seed count, distributed via the same Fibonacci-sphere
-   *   pattern used elsewhere in this codebase.
+   * @param {{drawRadius: number, radiusIterations: number, thetaIterations: number,
+   *   phiIterations: number, skew: number, iconCount: number}} opts  `drawRadius`
+   *   is both the seed shell's outer radius and the max distance from the
+   *   CoM a streamline may travel before being cut off.
    * @returns {{seedIndex: number, points: number[][]}[]}
    */
-  compute(bodies, { radius = 20, count = 24 } = {}) {
+  compute(bodies, { drawRadius = 20, radiusIterations = 12, thetaIterations = 24, phiIterations = 12, skew = 1.5, iconCount = 4096 } = {}) {
     if (bodies.length === 0) return [];
 
     const com = centerOfMass(bodies);
-    const seedCount = Math.max(1, Math.round(count));
+    const shellPoints = computeShellGrid(com, { drawRadius, radiusIterations, thetaIterations, phiIterations, skew, planar: false });
+    const seeds = decimateToLimit(shellPoints, iconCount);
     const lines = [];
 
-    for (let k = 0; k < seedCount; k++) {
-      const fibPoint = fibonacciSpherePoint(k, seedCount);
-      const seed = add(com, scale(fibPoint, radius));
-      const seedIndex = lines.length;
-
+    seeds.forEach(({ position: seed }, seedIndex) => {
       const points = [seed];
       let position = seed;
 
@@ -111,11 +104,11 @@ export class FieldLinesCalculator extends FieldCalculator {
         const nearestDist = nearestBodyDistance(position, bodies);
         if (nearestDist < TERMINATION_RADIUS) break;
 
-        if (magnitude(sub(position, com)) > radius) break;
+        if (magnitude(sub(position, com)) > drawRadius) break;
       }
 
       lines.push({ seedIndex, points });
-    }
+    });
 
     return lines;
   }

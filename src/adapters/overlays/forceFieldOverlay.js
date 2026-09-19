@@ -15,10 +15,11 @@ import { displaySettings } from '@app/displaySettings.js';
 import { ForceFieldCalculator } from '@core/overlays/ForceFieldCalculator.js';
 import { excludeNearBody } from '@adapters/overlays/ratchet.js';
 
-// MAX_RESOLUTION caps InstancedMesh capacity — 50³ = 125,000 instances,
-// still one draw call. forceFieldCount's slider max (50,000) cbrt's to ~37,
-// comfortably under this.
-const MAX_RESOLUTION = 50;
+// Caps InstancedMesh capacity — one draw call regardless of how many
+// instances are actually drawn. Sized to comfortably cover iconCount's
+// slider max (see discretizationPanel.js), since decimateToLimit in each
+// calculator already guarantees `points.length <= displaySettings.iconCount`.
+const MAX_INSTANCES = 20000;
 const CONE_RADIUS = 0.05;
 const ARROW_COLOR = 0x63b3ed;
 const BASE_ARROW_LENGTH = 1.2; // world units at magnitude-normalized 1.0, scale 1x
@@ -39,7 +40,7 @@ export class ForceFieldOverlay extends OverlayRenderer {
     // direction and scales it to that point's arrow length.
     const geometry = new THREE.ConeGeometry(CONE_RADIUS, 1, 6);
     const material = new THREE.MeshBasicMaterial({ color: ARROW_COLOR });
-    this.mesh = new THREE.InstancedMesh(geometry, material, MAX_RESOLUTION ** 3);
+    this.mesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
     this.mesh.visible = displaySettings.showForceField;
     this.mesh.count = 0; // nothing drawn until the first update()
     scene.add(this.mesh);
@@ -61,8 +62,12 @@ export class ForceFieldOverlay extends OverlayRenderer {
     if (!displaySettings.showForceField) return;
 
     const points = this.calculator.compute(relBodies, {
-      radius: displaySettings.forceFieldRadius,
-      count: displaySettings.forceFieldCount,
+      drawRadius: displaySettings.drawRadius,
+      radiusIterations: displaySettings.radiusIterations,
+      thetaIterations: displaySettings.thetaIterations,
+      phiIterations: displaySettings.phiIterations,
+      skew: displaySettings.magnitudeModSkewAll,
+      iconCount: displaySettings.iconCount,
     });
 
     for (const p of points) {
@@ -88,7 +93,10 @@ export class ForceFieldOverlay extends OverlayRenderer {
       // the pivot (normalizedMag=1) as well as compressing values below it,
       // so an uncapped result can blow up arrow length for low scale values.
       const displayedMag = Math.min(MAX_NORMALIZED_MAGNITUDE, Math.pow(Math.max(0, normalizedMag), gamma));
-      const length = Math.max(0, displayedMag * BASE_ARROW_LENGTH);
+      // magnitudeModForceField is an orthogonal rendered-magnitude multiplier
+      // (separate axis from forceFieldScale's gamma curve and from
+      // magnitudeModSkewAll's sampling-density skew).
+      const length = Math.max(0, displayedMag * BASE_ARROW_LENGTH * displaySettings.magnitudeModForceField);
       if (length <= 1e-6) continue;
 
       this._position.copy(this.toThree(p.position));

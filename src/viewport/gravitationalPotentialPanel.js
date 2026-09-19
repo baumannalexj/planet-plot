@@ -150,8 +150,6 @@ export function mountGravitationalPotentialPanel(container) {
   root.appendChild(pillsRow);
 
   const scaleInput = makeSlider(root, 'potentialFieldScale', 'Scale', { min: -10, max: 30, step: 1 });
-  const resolutionInput = makeSlider(root, 'potentialFieldResolution', 'Resolution', { min: 4, max: 600, step: 4 });
-  const radiusInput = makeSlider(root, 'potentialFieldRadius', 'Draw radius', { min: 5, max: 60, step: 1 });
   const lineCountInput = makeSlider(root, 'equipotentialLineCount', 'Number of lines', { min: 2, max: 20, step: 1 });
   const zInput = makeSlider(root, 'potentialFieldZ', 'Z offset', { min: -20, max: 20, step: 0.5 });
 
@@ -159,8 +157,6 @@ export function mountGravitationalPotentialPanel(container) {
     surfacePill.sync(s.showPotentialField);
     linesPill.sync(s.showEquipotentialLines);
     scaleInput.value = String(s.potentialFieldScale);
-    resolutionInput.value = String(s.potentialFieldResolution);
-    radiusInput.value = String(s.potentialFieldRadius);
     lineCountInput.value = String(s.equipotentialLineCount);
     zInput.value = String(s.potentialFieldZ);
   });

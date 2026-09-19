@@ -61,11 +61,9 @@ export class EquipotentialLinesOverlay extends OverlayRenderer {
   update(relBodies) {
     if (!displaySettings.showEquipotentialLines) return;
 
-    const resolution = Math.max(4, Math.round(displaySettings.potentialFieldResolution));
-    const z = displaySettings.potentialFieldZ;
-    const radius = displaySettings.potentialFieldRadius;
+    const { drawRadius, radiusIterations, thetaIterations, magnitudeModSkewAll: skew, potentialFieldZ: z } = displaySettings;
 
-    const points = this.potentialCalculator.compute(relBodies, { extent: radius, resolution, z });
+    const points = this.potentialCalculator.compute(relBodies, { drawRadius, radiusIterations, thetaIterations, skew, z });
     for (const p of points) {
       if (excludeNearBody(p.position, relBodies, RATCHET_EXCLUSION_RADIUS)) continue;
       if (p.value < this.minValueSeen) this.minValueSeen = p.value;
@@ -77,8 +75,10 @@ export class EquipotentialLinesOverlay extends OverlayRenderer {
       levels.push((this.minValueSeen * (k + 1)) / (N + 1));
     }
 
-    const contours = this.calculator.compute(relBodies, { extent: radius, resolution, z, levels });
+    const contours = this.calculator.compute(relBodies, { drawRadius, radiusIterations, thetaIterations, skew, z, levels });
     this.ensureLineCount(N);
+
+    const opacity = THREE.MathUtils.clamp(displaySettings.magnitudeModEquipotentialLines, 0, 1);
 
     contours.forEach((contour, k) => {
       const line = this.lines[k];
@@ -104,8 +104,8 @@ export class EquipotentialLinesOverlay extends OverlayRenderer {
         posArray[idx + 5] = 0;
 
         const cIdx = i * 8;
-        const alpha0 = radialFade(seg[0], seg[1], radius);
-        const alpha1 = radialFade(seg[3], seg[4], radius);
+        const alpha0 = radialFade(seg[0], seg[1], drawRadius);
+        const alpha1 = radialFade(seg[3], seg[4], drawRadius);
         colArray[cIdx] = levelColor.r;
         colArray[cIdx + 1] = levelColor.g;
         colArray[cIdx + 2] = levelColor.b;
@@ -118,6 +118,12 @@ export class EquipotentialLinesOverlay extends OverlayRenderer {
       line.geometry.attributes.position.needsUpdate = true;
       line.geometry.attributes.color.needsUpdate = true;
       line.geometry.computeBoundingSphere();
+
+      // magnitudeModEquipotentialLines: orthogonal rendered-opacity multiplier,
+      // layered on top of per-vertex radialFade alpha (three.js multiplies
+      // material.opacity with vertex-color alpha when both are active).
+      line.material.transparent = true;
+      line.material.opacity = opacity;
     });
 
     this.group.position.y = z;

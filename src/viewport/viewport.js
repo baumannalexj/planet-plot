@@ -11,6 +11,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { displaySettings } from '../app/displaySettings.js';
 import { mountDisplayControls } from './displayControls.js';
 import { mountGravitationalPotentialPanel } from './gravitationalPotentialPanel.js';
+import { mountDiscretizationPanel } from './discretizationPanel.js';
 import { LagrangePointsOverlay } from '@adapters/overlays/lagrangePointsOverlay.js';
 import { ForceFieldOverlay } from '@adapters/overlays/forceFieldOverlay.js';
 import { BillboardArrowOverlay } from '@adapters/overlays/billboardArrowOverlay.js';
@@ -185,6 +186,10 @@ export function mountViewport(el, store) {
   // the NLIPS pill/Display popover anchored top-left — see
   // gravitationalPotentialPanel.js.
   mountGravitationalPotentialPanel(el);
+  // Shared shell-grid discretization panel, bottom-left so it doesn't
+  // collide with the Display ▾ popover (top-left) or the gravitational
+  // potential panel (top-right) — see discretizationPanel.js.
+  mountDiscretizationPanel(el);
 
   const lagrangeOverlay = new LagrangePointsOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
   const forceFieldOverlay = new ForceFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));

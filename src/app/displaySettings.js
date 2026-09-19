@@ -27,32 +27,44 @@ class DisplaySettings {
     this.arrowStyle = 'skinny';
     /** Force-field magnitude-to-size gamma exponent (displayedMag = normalizedMag ** (1/scale)). 1 = identity; >1 boosts weak/far-field arrows; <1 compresses them further. Must stay > 0. */
     this.forceFieldScale = 1;
-    /** Force-field "sphere of draw" — half-width of the sampled cube (AU). Replaces the old hardcoded GRID_EXTENT. */
-    this.forceFieldRadius = 20;
-    /** Force-field sample count (approximate total points; internally rounded to the nearest cube). */
-    this.forceFieldCount = 39304;
     /** Compute + render a gravitational-potential scalar-field displacement mesh. */
     this.showPotentialField = false;
     /** Potential-field z-plane offset for sampling. */
     this.potentialFieldZ = 0;
-    /** Potential-field/equipotential-lines draw radius — sample extent + fade-to-transparent distance (AU). Replaces the old hardcoded GRID_EXTENT. */
-    this.potentialFieldRadius = 20;
     /** Potential-field displacement magnitude multiplier. */
     this.potentialFieldScale = 1;
-    /** Potential-field sample grid resolution (samples per side). */
-    this.potentialFieldResolution = 20;
     /** Compute + render equipotential contour lines over the potential field. */
     this.showEquipotentialLines = false;
     /** Number of equipotential contour lines to draw. */
     this.equipotentialLineCount = 5;
     /** Compute + render gravitational field-line streamlines from seeds around each body. */
     this.showFieldLines = false;
-    /** Field-lines "sphere of draw" — seed placement radius and max streamline travel distance (AU). */
-    this.fieldLinesRadius = 20;
-    /** Field-lines total seed count across all bodies combined (divided evenly per body). */
-    this.fieldLinesCount = 24;
     /** Field-lines rendered length/arrow-spacing multiplier — mirrors forceFieldScale. */
     this.fieldLinesScale = 1;
+
+    // --- Shared adaptive spherical-shell discretization (Task 25) ---
+    // Replaces the old per-overlay forceFieldRadius/forceFieldCount/
+    // potentialFieldResolution/fieldLinesRadius/fieldLinesCount fields — all
+    // 4 field/streamline calculators now sample via the same shell grid
+    // (see DiscretizationGrid.computeShellGrid).
+    /** "Sphere of draw" — outer radius of the sampled shell grid (AU). */
+    this.drawRadius = 20;
+    /** Number of concentric radial shells. */
+    this.radiusIterations = 12;
+    /** Baseline theta (azimuthal) samples per shell, before skew falloff. */
+    this.thetaIterations = 24;
+    /** Baseline phi (polar) samples per shell for non-planar (3D) grids, before skew falloff. */
+    this.phiIterations = 12;
+    /** Density skew: 0 = uniform per-shell sample count; >0 concentrates samples toward the center (1/r^skew falloff on outer shells). */
+    this.magnitudeModSkewAll = 1.5;
+    /** Hard render-count ceiling — sampled points beyond this are stride-decimated before instancing/rendering. */
+    this.iconCount = 4096;
+    /** Force-field rendered magnitude/opacity multiplier — orthogonal to sampling density. */
+    this.magnitudeModForceField = 1.0;
+    /** Potential-field rendered magnitude/opacity multiplier — orthogonal to sampling density. */
+    this.magnitudeModPotential = 1.0;
+    /** Equipotential-lines rendered magnitude/opacity multiplier — orthogonal to sampling density. */
+    this.magnitudeModEquipotentialLines = 1.0;
 
     /** @type {Set<(s: DisplaySettings) => void>} */
     this._listeners = new Set();
