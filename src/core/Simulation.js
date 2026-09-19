@@ -225,6 +225,8 @@ export class Snapshot {
       velocity: [...b.velocity],
       speed: b.speed,
       kineticEnergy: b.kineticEnergy,
+      spinAxis: [...b.spinAxis],
+      spinRate: b.spinRate,
     }));
     this._com = sim.centerOfMass();
   }

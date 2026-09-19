@@ -195,6 +195,8 @@ export function mountViewport(el, store) {
 
   // --- Render loop -------------------------------------------------------
   const tmp = new THREE.Vector3();
+  const spinAxisTmp = new THREE.Vector3();
+  const spinQuaternion = new THREE.Quaternion();
   function render() {
     requestAnimationFrame(render);
     controls.update();
@@ -213,6 +215,16 @@ export function mountViewport(el, store) {
         toThree(b.position, tmp);
         entry.mesh.position.copy(tmp);
         pushTrailPoint(entry.trail, tmp.x, tmp.y, tmp.z);
+
+        // Kinematic spin: closed-form q(t) = axisAngle(spinAxis, spinRate*t)
+        // — no accumulation error over long runs, decoupled from
+        // Simulation.step() (point-mass gravity exerts zero torque about a
+        // body's own center, so there's no differential equation to
+        // integrate here). See WORK_QUEUE.md's "Research: Rotational
+        // bodies" entry.
+        toThree(b.spinAxis, spinAxisTmp).normalize();
+        spinQuaternion.setFromAxisAngle(spinAxisTmp, b.spinRate * latestSnapshot.time);
+        entry.mesh.quaternion.copy(spinQuaternion);
 
         // Base radius from mass (read live so mass edits in the object
         // panel are reflected immediately) or a flat uniform radius,

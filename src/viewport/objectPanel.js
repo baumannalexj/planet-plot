@@ -273,11 +273,23 @@ export function mountObjectPanel(el, store) {
       zInput.name = `op-z-${i}`;
       zField.appendChild(zInput);
 
+      const spinRateField = document.createElement('label');
+      spinRateField.className = 'op-field';
+      spinRateField.htmlFor = `op-spinrate-${i}`;
+      spinRateField.append('ψ̇=');
+      const spinRateInput = document.createElement('input');
+      spinRateInput.type = 'number';
+      spinRateInput.step = 'any';
+      spinRateInput.id = `op-spinrate-${i}`;
+      spinRateInput.name = `op-spinrate-${i}`;
+      spinRateField.appendChild(spinRateInput);
+
       fields.appendChild(massField);
       fields.appendChild(speedField);
       fields.appendChild(xField);
       fields.appendChild(yField);
       fields.appendChild(zField);
+      fields.appendChild(spinRateField);
 
       info.appendChild(nameRow);
       info.appendChild(fields);
@@ -306,12 +318,14 @@ export function mountObjectPanel(el, store) {
       xInput.value = b.position[0];
       yInput.value = b.position[1];
       zInput.value = b.position[2];
+      spinRateInput.value = b.spinRate;
 
       // Original values captured at card-build time (fresh bodies from a
       // preset build) — this is what the per-body reset restores.
       const origMass = b.mass;
       const origVelocity = [...b.velocity];
       const origPosition = [...b.position];
+      const origSpinRate = b.spinRate;
 
       massInput.addEventListener('change', () => {
         const v = parseFloat(massInput.value);
@@ -345,18 +359,24 @@ export function mountObjectPanel(el, store) {
         b.position[2] = parseFloat(zInput.value) || 0;
       });
 
+      spinRateInput.addEventListener('change', () => {
+        b.spinRate = parseFloat(spinRateInput.value) || 0;
+      });
+
       resetBtn.addEventListener('click', () => {
         b.mass = origMass;
         b.velocity = [...origVelocity];
         b.position = [...origPosition];
+        b.spinRate = origSpinRate;
         massInput.value = origMass;
         speedInput.value = b.speed.toFixed(2);
         xInput.value = b.position[0];
         yInput.value = b.position[1];
         zInput.value = b.position[2];
+        spinRateInput.value = b.spinRate;
       });
 
-      return { body: b, massInput, speedInput, xInput, yInput, zInput, calcEls, origMass, origVelocity, origPosition };
+      return { body: b, massInput, speedInput, xInput, yInput, zInput, spinRateInput, calcEls, origMass, origVelocity, origPosition, origSpinRate };
     });
   }
 
@@ -378,6 +398,9 @@ export function mountObjectPanel(el, store) {
       }
       if (document.activeElement !== entry.zInput) {
         entry.zInput.value = entry.body.position[2];
+      }
+      if (document.activeElement !== entry.spinRateInput) {
+        entry.spinRateInput.value = entry.body.spinRate;
       }
       const relBody = relBodies[i];
       if (!relBody) return;

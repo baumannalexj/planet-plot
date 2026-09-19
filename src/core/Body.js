@@ -11,13 +11,20 @@ export class Body {
    * @param {string} opts.color      CSS/hex color used by viewport + plots.
    * @param {number[]} opts.position [x, y, z] initial position.
    * @param {number[]} opts.velocity [vx, vy, vz] initial velocity.
+   * @param {number[]} [opts.spinAxis]  Unit vector spin axis. Default [0,1,0].
+   * @param {number} [opts.spinRate]    Constant spin rate, rad/tu. Default 0.
+   *   Point-mass gravity exerts zero torque about a body's own center, so
+   *   spin is kinematic and decoupled from Simulation's RK4 step — see
+   *   WORK_QUEUE.md's "Research: Rotational bodies" entry.
    */
-  constructor({ name, mass, color, position, velocity }) {
+  constructor({ name, mass, color, position, velocity, spinAxis = [0, 1, 0], spinRate = 0 }) {
     this.name = name;
     this.mass = mass;
     this.color = color;
     this.position = [...position];
     this.velocity = [...velocity];
+    this.spinAxis = [...spinAxis];
+    this.spinRate = spinRate;
   }
 
   /** Scalar speed |v|. */

@@ -49,6 +49,8 @@ const METRIC_UNITS = {
   vz: 'AU/tu',
   rhodot: 'AU/tu',
   dAdt: 'AU²/tu',
+  psi: 'rad',
+  psidot: 'rad/tu',
   // Coordinate-system axis components (from COORD_SYSTEMS[*].axes).
   x: 'AU',
   y: 'AU',
@@ -149,6 +151,19 @@ export function arealVelocity(body) {
   return 0.5 * rho2 * azimuthalRate(body);
 }
 
+// ψ = spin angle, kinematic and closed-form (spinRate is constant — see
+// Body.js/Simulation.js's Snapshot — so this is exact at any snapshot.time,
+// not an accumulated integral).
+export function spinAngle(body, snapshot) {
+  const raw = body.spinRate * snapshot.time;
+  const twoPi = 2 * Math.PI;
+  return ((raw % twoPi) + twoPi) % twoPi;
+}
+
+export function spinRateOf(body) {
+  return body.spinRate;
+}
+
 export function polarRate(body) {
   const [x, y, z] = body.position;
   const [vx, vy, vz] = body.velocity;
@@ -184,6 +199,8 @@ export const DERIVED_METRICS = [
   { id: 'vz', label: 'vz', compute: (body) => vz(body) },
   { id: 'rhodot', label: 'ρ̇ (cylindrical radial velocity)', compute: (body) => cylindricalRhoDot(body) },
   { id: 'dAdt', label: 'dA/dt (areal velocity)', compute: (body) => arealVelocity(body) },
+  { id: 'psi', label: 'ψ (spin angle)', compute: (body, snapshot) => spinAngle(body, snapshot) },
+  { id: 'psidot', label: 'ψ̇ (spin rate)', compute: (body) => spinRateOf(body) },
 ];
 
 /**
