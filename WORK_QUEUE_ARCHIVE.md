@@ -1397,3 +1397,17 @@ by (1); (3) new `@api/ForceLaw.js` interface + `@core/NewtonianForceLaw.js` defa
 implementations — pure physics math, no framework dependency), `Simulation` takes an optional
 `forceLaw` opt same pattern as its existing `logger` opt. `yarn test` 32/32, `yarn build`
 clean. Full doc archived at `WORK_ITEM_TASKS/archive/task-wi-28-provider-di-viewcontroller.md`.
+
+## task-wi-35-provider-forcelaw-implementation [DONE: merged into feat/simulator-mvp as 96add6b]
+
+Implemented task-wi-28's full recommendation: `src/provider/` (5 singleton provider classes),
+`viewport.js`/`main.js` wired through `overlayRendererProvider`/`loggerProvider` (no
+ViewController class, per task-wi-28), new `@api/ForceLaw.js` + `@core/NewtonianForceLaw.js`
+(extracted `Simulation._derivatives()` verbatim — still sums over ALL bodies unconditionally,
+no distance cutoff), `Simulation` takes an optional `forceLaw` ctor opt mirroring its existing
+`logger` opt. `yarn test` 32/32 — run before AND after the Simulation.js edit, numerically
+identical, confirming the refactor changed no physics. `yarn build` clean. Live `yarn dev`
+check not done (headless worktree, no browser). One conflict during merge (WORK_QUEUE.md,
+task-wi-35's own status line) — checked the ENTIRE file for markers this time, not just the
+expected line, per the earlier incident. Full task doc archived at
+`WORK_ITEM_TASKS/archive/task-wi-35-provider-forcelaw-implementation.md`.
