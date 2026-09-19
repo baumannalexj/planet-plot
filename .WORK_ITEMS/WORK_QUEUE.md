@@ -3,6 +3,7 @@
 Slim index only — see `WORK_ITEMS_RULES.md` for the protocol, `WORK_QUEUE_TASKS/` for full
 task detail, `WORK_QUEUE_ARCHIVE.md` for completed work (Tasks 1-22, 27).
 
+* task-wi-26-svg-fieldline-arrows | WORK_QUEUE_TASKS/archive/task-wi-26-svg-fieldline-arrows.md | status: DONE
 * task-wi-28-provider-di-viewcontroller | WORK_QUEUE_TASKS/archive/task-wi-28-provider-di-viewcontroller.md | status: DONE
 * task-wi-30-mesh-vs-surface | WORK_QUEUE_TASKS/task-wi-30-mesh-vs-surface.md | status: BLOCKED: needs the human to describe what "mesh" vs "surface" should each look like
 * task-wi-31-jacobi-potential | WORK_QUEUE_TASKS/archive/task-wi-31-jacobi-potential.md | status: DONE
