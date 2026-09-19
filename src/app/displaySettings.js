@@ -5,6 +5,8 @@
 // behavior across every 3D view at once. Kept separate from AppStore (which
 // owns simulation state) so display toggles never touch physics.
 
+import { DEFAULT_COORD_SYSTEM } from '@core/coordinates.js';
+
 export const NLIPS_DESCRIPTION =
   'Non-Linear Inverse Perspective Scaling: scale bodies/markers by distance ' +
   'from the camera so distant objects stay visible.';
@@ -17,6 +19,8 @@ class DisplaySettings {
     this.massSize = true;
     /** Show axis name labels in the 3D plots. */
     this.axisNames = true;
+    /** Shared coordinate-system selection (see @core/coordinates.js's COORD_SYSTEMS) — the object panel's Calc readout reads this directly; plot cards initialize from it but can still be changed independently per card. */
+    this.coordSystemId = DEFAULT_COORD_SYSTEM;
     /** Compute + render the 5 Lagrange points (L1-L5) for the two most massive bodies. */
     this.showLagrangePoints = false;
     /** Compute + render a gravitational-force vector-arrow field in the z=0 plane. */

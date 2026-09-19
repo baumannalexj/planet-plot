@@ -17,14 +17,17 @@
 
 import { config } from '../core/Config.js';
 import { computeMetric } from '../plots/metrics.js';
+import { COORD_SYSTEMS } from '../core/coordinates.js';
+import { displaySettings } from '../app/displaySettings.js';
 
 // Per-body live calc readout (WI-4, first pass): only metrics already in the
 // plot registry (metrics.js) — speed/ke/pe are coordinate-system-independent,
-// r/theta/phi are this body's position in the spherical system, relative to
-// store.origin (matches the "3D view coordinate system, relative to center
-// of mass" decision). ψ/ψ̇ (rigid-body orientation) and dA/dt (not yet a
-// registered metric) are deliberately left out of this first pass.
-const CALC_COORD_SYSTEM = 'spherical';
+// r/theta/phi are this body's position in the CURRENTLY SELECTED coordinate
+// system (displaySettings.coordSystemId, shared with the plots — WI Task 29),
+// relative to store.origin (matches the "3D view coordinate system, relative
+// to center of mass" decision). A metric id not present in the selected
+// system's axes (e.g. 'r' while cartesian is selected) computes to NaN and
+// renders as "—", same as any other undefined metric here.
 const CALC_METRICS = [
   { id: 'speed', label: 'V' },
   { id: 'ke', label: 'K' },
@@ -123,6 +126,22 @@ function ensureStyles() {
       color: var(--muted, #a0aec0);
       margin: 0 0 10px;
     }
+    .op-coord-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 10px;
+      font-size: 0.8rem;
+      color: var(--muted, #a0aec0);
+    }
+    .op-coord-row select {
+      background: var(--panel-2, #1a1f2c);
+      color: var(--text, #e2e8f0);
+      border: 1px solid var(--border, #2d3748);
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 0.8rem;
+    }
     .op-constants {
       margin-top: 16px;
       padding-top: 12px;
@@ -173,6 +192,28 @@ export function mountObjectPanel(el, store) {
   heading.className = 'op-heading';
   heading.textContent = 'Bodies';
   el.appendChild(heading);
+
+  // Shared coordinate-system selector — reads/writes displaySettings.coordSystemId,
+  // same shared setting plotPanel.js's per-card selectors initialize from (WI Task 29).
+  const coordRow = document.createElement('label');
+  coordRow.className = 'op-coord-row';
+  coordRow.append('Coordinates:');
+  const coordSelect = document.createElement('select');
+  for (const sys of Object.values(COORD_SYSTEMS)) {
+    const opt = document.createElement('option');
+    opt.value = sys.id;
+    opt.textContent = sys.label;
+    coordSelect.appendChild(opt);
+  }
+  coordSelect.value = displaySettings.coordSystemId;
+  coordSelect.addEventListener('change', () => {
+    displaySettings.set('coordSystemId', coordSelect.value);
+  });
+  displaySettings.onChange((s) => {
+    if (document.activeElement !== coordSelect) coordSelect.value = s.coordSystemId;
+  });
+  coordRow.appendChild(coordSelect);
+  el.appendChild(coordRow);
 
   const list = document.createElement('div');
   el.appendChild(list);
@@ -405,7 +446,7 @@ export function mountObjectPanel(el, store) {
       const relBody = relBodies[i];
       if (!relBody) return;
       for (const { id } of CALC_METRICS) {
-        const value = computeMetric(id, relBody, snapshot, CALC_COORD_SYSTEM);
+        const value = computeMetric(id, relBody, snapshot, displaySettings.coordSystemId);
         entry.calcEls[id].textContent = Number.isFinite(value) ? value.toFixed(2) : '—';
       }
     });

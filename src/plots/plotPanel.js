@@ -13,10 +13,11 @@
 // it if they want). Turning Z on just starts giving points a real Z value and
 // the same scene now has depth. One renderer, no swap/teardown on toggle.
 
-import { COORD_SYSTEMS, DEFAULT_COORD_SYSTEM } from '../core/coordinates.js';
+import { COORD_SYSTEMS } from '../core/coordinates.js';
 import { getMetricOptions, computeMetric, isPeriodicMetric, unitForMetric } from './metrics.js';
 import { Plot3D } from './plot3d.js';
 import { ACTIVE_CORRECTION } from '@adapters/plotCorrections/index.js';
+import { displaySettings } from '@app/displaySettings.js';
 import './plotPanel.css';
 
 const HISTORY_LIMIT = 400;
@@ -61,7 +62,11 @@ class PlotInstance {
     this.id = nextPlotId++;
     this.store = store;
     this.onRemove = onRemove;
-    this.coordSystemId = DEFAULT_COORD_SYSTEM;
+    // Initializes from the shared displaySettings.coordSystemId so new cards
+    // start in sync with the object panel — but this is an OVERRIDE, not a
+    // live-synced mirror: once the user changes this card's own selector
+    // (below), it keeps that choice independently (no click-elsewhere reset).
+    this.coordSystemId = displaySettings.coordSystemId;
     this.xMetric = 'time';
     this.yMetric = 'speed';
     this.zMetric = null; // off by default
