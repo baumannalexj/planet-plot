@@ -3,8 +3,7 @@
 Slim index only — see `WORK_ITEM_RULES.md` for the protocol, `WORK_ITEM_TASKS/` for full
 task detail, `WORK_QUEUE_ARCHIVE.md` for completed work (Tasks 1-22, 27).
 
-* task-wi-26-svg-fieldline-arrows | WORK_ITEM_TASKS/task-wi-26-svg-fieldline-arrows.md | status: ASSIGNED
-  - claimed by worker-svg-fieldline-arrows @ 2026-09-19T00:00:00Z
+* task-wi-26-svg-fieldline-arrows | WORK_ITEM_TASKS/task-wi-26-svg-fieldline-arrows.md | status: READY_FOR_MERGE: worktree-agent-aa55ba8924515bb11
 * task-wi-28-provider-di-viewcontroller | WORK_ITEM_TASKS/task-wi-28-provider-di-viewcontroller.md | status: TODO
 * task-wi-30-mesh-vs-surface | WORK_ITEM_TASKS/task-wi-30-mesh-vs-surface.md | status: BLOCKED: needs the human to describe what "mesh" vs "surface" should each look like
 * task-wi-31-jacobi-potential | WORK_ITEM_TASKS/archive/task-wi-31-jacobi-potential.md | status: DONE
