@@ -8,21 +8,26 @@
 // Everything here is tunable — change UNIT_MASS_KG or UNIT_LENGTH_M to re-scale
 // what "1 mass unit" or "1 length unit" means, and the derived time unit
 // updates automatically to keep G = 1 self-consistent.
+//
+// Values themselves live in constants.json (loaded via Config) so they can
+// be edited without touching this derivation logic.
+
+import { config } from './Config.js';
 
 // --- Real-world physical constants (SI) -------------------------------------
 
 /** Newtonian gravitational constant, m^3 kg^-1 s^-2. */
-export const G_REAL = 6.6743e-11;
+export const G_REAL = config.gReal;
 
 /** Mass of the Sun, kg. Our simulation's mass unit: m = 1  ==  1 solar mass. */
-export const SOLAR_MASS_KG = 1.98892e30;
+export const SOLAR_MASS_KG = config.solarMassKg;
 
 /** Astronomical unit, metres. Our simulation's length unit: L = 1  ==  1 AU. */
-export const AU_M = 1.495978707e11;
+export const AU_M = config.auM;
 
 /** Seconds in a day / Julian year, for human-readable time output. */
-export const SECONDS_PER_DAY = 86400;
-export const DAYS_PER_YEAR = 365.25;
+export const SECONDS_PER_DAY = config.secondsPerDay;
+export const DAYS_PER_YEAR = config.daysPerYear;
 
 // --- Chosen simulation unit system ------------------------------------------
 
@@ -84,4 +89,4 @@ export function simMassToSolar(simMass) {
  * comes back. For r² ~ O(1) that floor is ε ≳ ~1.5e-8 — this value must
  * stay comfortably above it.
  */
-export const SOFTENING = 1e-3;
+export const SOFTENING = config.softening;

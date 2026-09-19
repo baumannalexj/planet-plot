@@ -25,6 +25,7 @@
         <button id="reset">Reset</button>
         <span id="sim-time">t = 0.0 days</span>
         <span id="energy-ratio">E: — / — = —%</span>
+        <span id="energy-break-badge" hidden>⏸ Paused — energy check</span>
       </div>
     </header>
 
@@ -40,6 +41,21 @@
       <!-- Agent B: right plotting panel -->
       <aside id="plot-panel"></aside>
     </main>
+
+    <footer id="work-items">
+      <div class="work-items__col">
+        <h2>Features</h2>
+        <ul id="work-items-features"></ul>
+      </div>
+      <div class="work-items__col">
+        <h2>Todos</h2>
+        <ul id="work-items-todos"></ul>
+      </div>
+      <div class="work-items__col">
+        <h2>Bugs</h2>
+        <ul id="work-items-bugs"></ul>
+      </div>
+    </footer>
 
     <script type="module" src="/src/main.js"></script>
   </body>

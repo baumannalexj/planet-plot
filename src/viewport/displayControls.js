@@ -8,6 +8,8 @@
 // main.js or index.html.
 
 import { displaySettings, NLIPS_DESCRIPTION } from '../app/displaySettings.js';
+import { DISPLAY_OPTIONS } from '@app/displayOptions.js';
+import { BooleanDisplayOption, RangeDisplayOption, SelectDisplayOption } from '@api/DisplayOption.js';
 
 const STYLE_ID = 'display-controls-styles';
 
@@ -148,7 +150,9 @@ export function mountDisplayControls(container) {
   toggleBtn.textContent = 'Display ▾';
 
   const panel = document.createElement('div');
-  panel.className = 'dc-panel';
+  // Starts expanded: the overlay toggles (Lagrange points, force field, etc.)
+  // are load-bearing enough now that hiding them behind a click was friction.
+  panel.className = 'dc-panel open';
 
   function makeRow(key, label, title) {
     const row = document.createElement('label');
@@ -166,8 +170,49 @@ export function mountDisplayControls(container) {
     return checkbox;
   }
 
-  const massSizeCheckbox = makeRow('massSize', 'Mass-scaled size');
-  const axisNamesCheckbox = makeRow('axisNames', 'Axis names');
+  const controlsByKey = {};
+
+  for (const option of DISPLAY_OPTIONS) {
+    if (option instanceof BooleanDisplayOption) {
+      controlsByKey[option.key] = makeRow(option.key, option.label, option.title);
+    } else if (option instanceof RangeDisplayOption) {
+      const row = document.createElement('label');
+      row.className = 'dc-row';
+      if (option.title) row.title = option.title;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(option.min);
+      input.max = String(option.max);
+      input.step = String(option.step);
+      input.value = String(displaySettings[option.key]);
+      input.addEventListener('input', () => {
+        displaySettings.set(option.key, parseFloat(input.value));
+      });
+      row.append(option.label, input);
+      panel.appendChild(row);
+      controlsByKey[option.key] = input;
+    } else if (option instanceof SelectDisplayOption) {
+      const row = document.createElement('label');
+      row.className = 'dc-row';
+      if (option.title) row.title = option.title;
+      const select = document.createElement('select');
+      for (const choice of option.choices) {
+        const opt = document.createElement('option');
+        opt.value = choice;
+        opt.textContent = choice;
+        select.appendChild(opt);
+      }
+      select.value = displaySettings[option.key];
+      select.addEventListener('change', () => {
+        displaySettings.set(option.key, select.value);
+      });
+      row.append(option.label, select);
+      panel.appendChild(row);
+      controlsByKey[option.key] = select;
+    } else {
+      throw new Error(`Unhandled DisplayOption type for key "${option.key}"`);
+    }
+  }
 
   toggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -183,8 +228,11 @@ export function mountDisplayControls(container) {
   // plots panel exposing its own control on the same shared singleton).
   displaySettings.onChange((s) => {
     syncNlipsPill(s.nlips);
-    massSizeCheckbox.checked = s.massSize;
-    axisNamesCheckbox.checked = s.axisNames;
+    for (const option of DISPLAY_OPTIONS) {
+      const el = controlsByKey[option.key];
+      if (option instanceof BooleanDisplayOption) el.checked = s[option.key];
+      else el.value = String(s[option.key]);
+    }
   });
 
   anchor.appendChild(toggleBtn);

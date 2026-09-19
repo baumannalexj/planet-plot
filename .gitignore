@@ -3,6 +3,9 @@ dist/
 .DS_Store
 .vite/
 *.log
+log/
+.idea/
+.playwright-mcp/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

@@ -8,8 +8,25 @@ import { simTimeToDays, simTimeToYears } from './core/constants.js';
 import { mountViewport } from './viewport/viewport.js';
 import { mountObjectPanel } from './viewport/objectPanel.js';
 import { mountPlotPanel } from './plots/plotPanel.js';
+import { ConsoleLogger } from '@adapters/loggers/ConsoleLogger.js';
+import { LoglevelLogger } from '@adapters/loggers/LoglevelLogger.js';
+import { CsvFileLogger } from '@adapters/loggers/CsvFileLogger.js';
+import { MultiLogger } from '@adapters/loggers/MultiLogger.js';
 
-const SUPERSCRIPT_DIGITS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+// --- Logger wiring (composition root decides implementation + level) -------
+// Console visibility during dev + CSV tick-data capture, both at once — flip
+// ConsoleLogger for LoglevelLogger to swap the console backend for the
+// `loglevel` library (e.g. for its persistent-level/remote-transport
+// ecosystem) without touching any call site; the Logger interface is
+// identical either way. ConsoleLogger's level is set to 'info' so per-tick
+// debug() calls don't spam the browser console — CsvFileLogger has no level
+// filter of its own, so it still captures every tick to disk regardless
+// (see WORK_ITEMS.md: "we should keep that every time").
+const CONSOLE_LOG_LEVEL = 'info';
+store.sim.logger = new MultiLogger([new ConsoleLogger(CONSOLE_LOG_LEVEL), new CsvFileLogger()]);
+void LoglevelLogger; // available; swap in for ConsoleLogger above when wanted
+
+const SUPERSCRIPT_DIGITS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' }; // FIXME move this to config, and the SuperScriptDigits can be a type/class
 function toSuperscript(n) {
   return String(n).split('').map((ch) => SUPERSCRIPT_DIGITS[ch] ?? ch).join('');
 }
@@ -164,10 +181,25 @@ renderNotifications(store.notifications);
 store.onNotificationsChange(renderNotifications);
 
 const playPause = document.getElementById('play-pause');
+const energyBreakBadge = document.getElementById('energy-break-badge');
+// Sync on every notification change too, not just clicks — a programmatic
+// pause (the energy-break check in store.js) flips store.sim.running without
+// going through togglePlay(), and addNotification() fires synchronously
+// right when that happens, so this reflects it immediately.
+function syncPlayPauseUi() {
+  playPause.textContent = store.sim.running ? 'Pause' : 'Play';
+  energyBreakBadge.hidden = !store.pausedByEnergyBreak;
+}
+syncPlayPauseUi();
+store.onNotificationsChange(syncPlayPauseUi);
 playPause.addEventListener('click', () => {
-  playPause.textContent = store.togglePlay() ? 'Pause' : 'Play';
+  store.togglePlay();
+  syncPlayPauseUi();
 });
-document.getElementById('reset').addEventListener('click', () => store.reset());
+document.getElementById('reset').addEventListener('click', () => {
+  store.reset();
+  syncPlayPauseUi();
+});
 
 // --- Mount panels ------------------------------------------------------------
 
@@ -175,10 +207,31 @@ mountObjectPanel(document.getElementById('object-panel'), store);
 mountViewport(document.getElementById('viewport'), store);
 mountPlotPanel(document.getElementById('plot-panel'), store);
 
+// --- Work items card ----------------------------------------------------------
+// Static snapshot fetched from public/work-items.json, editable by hand without
+// touching app code. No live-reload wiring — refresh the page after editing.
+function renderWorkItemList(elId, items, emptyLabel) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  for (const text of items.length ? items : [emptyLabel]) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    el.appendChild(li);
+  }
+}
+fetch('/work-items.json')
+  .then((r) => r.json())
+  .then(({ features = [], todos = [], bugs = [] }) => {
+    renderWorkItemList('work-items-features', features, 'None yet');
+    renderWorkItemList('work-items-todos', todos, 'None yet');
+    renderWorkItemList('work-items-bugs', bugs, 'None known');
+  });
+
 // --- Animation loop ----------------------------------------------------------
 
 function loop() {
   store.tick();
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

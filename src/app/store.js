@@ -23,13 +23,22 @@ export const MAX_SPEED_FACTOR = SPEED_FACTORS[SPEED_FACTORS.length - 1];
 export const ENERGY_CHECK_INTERVAL_TICKS = 45; // ~once/second at 60fps/1x
 export const ENERGY_DRIFT_WARN_RATIO = 10; // energy changed by >1000% of baseline: matches the notification alarm
 export const ENERGY_DRIFT_CAUTION_RATIO = 0.5; // energy changed by >50% of baseline: amber tint on the live readout, below the warn/notification level
+// Hard pause condition: |E_current| < ENERGY_BREAK_RATIO * |E_baseline|. A
+// bound orbit's total energy is negative by convention (see chat/CLAUDE.md
+// context) — its MAGNITUDE shrinking toward 0 means the system is trending
+// toward unbound/escaping, a strong signal of a real integration error
+// rather than ordinary RK4 noise (which stays sub-percent). Distinct from
+// ENERGY_DRIFT_WARN_RATIO (a relative-change ratio that can fire in either
+// direction) — this one only fires on shrinking |E|, per explicit request.
+export const ENERGY_BREAK_RATIO = 0.5;
 
 export class AppStore {
-  constructor() {
+  /** @param {import('../api/logger/Logger.js').Logger} [logger] Composition root decides which one — see main.js. */
+  constructor(logger = null) {
     this.presetId = DEFAULT_PRESET;
     /** Reference frame origin: 'com' or a body index. */
     this.origin = 'com';
-    this.sim = new Simulation(PRESETS[this.presetId].build(), { dt: 0.008 });
+    this.sim = new Simulation(PRESETS[this.presetId].build(), { dt: 0.008, logger });
     // Sim speed, as a multiplier on integrator steps per frame (see setSpeed).
     this.speedFactor = SPEED_FACTORS[DEFAULT_SPEED_INDEX];
     // Fractional sub-step carry: lets factors below 1 (slow motion) advance
@@ -61,6 +70,7 @@ export class AppStore {
       typeof this.sim.totalEnergy === 'function' ? this.sim.totalEnergy() : null;
     this._driftWarned = false;
     this._ticksSinceEnergyCheck = 0;
+    this.pausedByEnergyBreak = false;
     // Snap the live readout back to the new baseline immediately, rather
     // than waiting for the next throttled tick.
     this.currentEnergy = this.energyBaseline;
@@ -94,6 +104,27 @@ export class AppStore {
     this._emitEnergy();
 
     this._checkEnergyDrift(current);
+    this._checkEnergyBreak(current);
+  }
+
+  /**
+   * Hard pause: |current| < ENERGY_BREAK_RATIO * |baseline| — see the
+   * constant's comment for why this specific direction/threshold. Fires
+   * once per baseline epoch (guarded by pausedByEnergyBreak, reset in
+   * _captureEnergyBaseline) so it doesn't re-notify every check tick while
+   * already paused.
+   */
+  _checkEnergyBreak(current) {
+    if (this.energyBaseline == null || this.pausedByEnergyBreak) return;
+    const threshold = ENERGY_BREAK_RATIO * Math.abs(this.energyBaseline);
+    if (Math.abs(current) < threshold) {
+      this.sim.running = false;
+      this.pausedByEnergyBreak = true;
+      this.addNotification({
+        level: 'error',
+        message: `Simulation paused: |energy| dropped below ${Math.round(ENERGY_BREAK_RATIO * 100)}% of its starting magnitude — likely an integration error. Reset to continue.`,
+      });
+    }
   }
 
   /** Has total energy drifted far enough from baseline to be alarming? */
@@ -180,6 +211,7 @@ export class AppStore {
 
   togglePlay() {
     this.sim.running = !this.sim.running;
+    if (this.sim.running) this.pausedByEnergyBreak = false;
     return this.sim.running;
   }
 

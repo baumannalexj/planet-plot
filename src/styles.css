@@ -91,6 +91,17 @@ button:hover { background: #3a4657; }
 #energy-ratio.energy-ratio--caution { color: #f6ad55; }
 #energy-ratio.energy-ratio--warning { color: #fc8181; }
 
+#energy-break-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fc8181;
+  background: rgba(252, 129, 129, 0.12);
+  border: 1px solid #fc8181;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+#energy-break-badge[hidden] { display: none; }
+
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
@@ -215,3 +226,20 @@ input[type='range']::-moz-range-progress {
   padding: 14px;
   overflow-y: auto;
 }
+
+#work-items {
+  display: flex;
+  gap: 20px;
+  padding: 12px 20px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.work-items__col { flex: 1; min-width: 0; }
+.work-items__col h2 { margin: 0 0 6px; font-size: 0.9rem; color: var(--accent); }
+.work-items__col ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.work-items__col li { margin-bottom: 4px; }

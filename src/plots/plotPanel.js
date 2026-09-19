@@ -15,7 +15,8 @@
 
 import { COORD_SYSTEMS, DEFAULT_COORD_SYSTEM } from '../core/coordinates.js';
 import { getMetricOptions, computeMetric, isPeriodicMetric, unitForMetric } from './metrics.js';
-import { Plot3D, CIRCULAR_R0, CIRCULAR_RK } from './plot3d.js';
+import { Plot3D } from './plot3d.js';
+import { ACTIVE_CORRECTION } from '@adapters/plotCorrections/index.js';
 import './plotPanel.css';
 
 const HISTORY_LIMIT = 400;
@@ -80,6 +81,11 @@ class PlotInstance {
     this.xRange = { min: Infinity, max: -Infinity };
     this.yRange = { min: Infinity, max: -Infinity };
     this.zRange = { min: Infinity, max: -Infinity };
+
+    // Which discontinuity/periodic-axis handling strategy this plot uses —
+    // see adapters/plotCorrections/index.js. Swappable per-instance if ever needed; defaults
+    // to whichever is currently active.
+    this.correction = ACTIVE_CORRECTION;
 
     this._buildDom();
     this.plot3d = new Plot3D(this.viewportEl);
@@ -199,7 +205,8 @@ class PlotInstance {
       dot.className = 'plot-card__readout-dot';
       dot.style.color = b.color;
       const valueText = document.createTextNode('—');
-      dot.append('●', valueText);
+      // dot.append('●', valueText);
+      dot.append(valueText);
       readout.dotsWrap.appendChild(dot);
       return valueText;
     });
@@ -353,11 +360,7 @@ class PlotInstance {
    */
   _computeCircularPlan() {
     const activeSlots = ['x', 'y', ...(this.zMetric ? ['z'] : [])];
-    const periodicSlots = activeSlots.filter((s) => isPeriodicMetric(this._metricForSlot(s)));
-    if (periodicSlots.length === 0) return null;
-    const ringSlot = periodicSlots[0];
-    const otherSlots = activeSlots.filter((s) => s !== ringSlot);
-    return { ringSlot, radiusSlot: otherSlots[0] ?? null, heightSlot: otherSlots[1] ?? null };
+    return this.correction.computePlan(activeSlots, (s) => isPeriodicMetric(this._metricForSlot(s)));
   }
 
   /**
@@ -396,33 +399,13 @@ class PlotInstance {
    * (out-of-plane, reusing the normal [-1,1] linear normalization).
    */
   _buildSeriesPoint(buf, idx, bounds) {
-    const ring = this._circularPlan;
-    if (!ring) {
-      return [
-        this._normalize(buf.x[idx], bounds.x),
-        this._normalize(buf.y[idx], bounds.y),
-        bounds.z ? this._normalize(buf.z[idx], bounds.z) : 0,
-      ];
-    }
-
-    const rawAngle = buf[ring.ringSlot][idx];
-    const angle = Number.isFinite(rawAngle) ? rawAngle : 0;
-
-    const radiusN = ring.radiusSlot ? this._normalize(buf[ring.radiusSlot][idx], bounds[ring.radiusSlot]) : 0;
-    const radius = CIRCULAR_R0 + radiusN * CIRCULAR_RK;
-
-    const height = ring.heightSlot ? this._normalize(buf[ring.heightSlot][idx], bounds[ring.heightSlot]) : 0;
-
-    // The ring's plane is spanned by the ringSlot and radiusSlot coordinate
-    // AXES themselves (cos on one, sin on the other) — matches
-    // Plot3D.setGeometryMode(), which derives the height/normal axis as
-    // whichever of x/y/z is neither of those two. heightSlot's value (if
-    // any) goes on that remaining axis.
-    const point = { x: 0, y: 0, z: 0 };
-    point[ring.ringSlot] = Math.cos(angle) * radius;
-    if (ring.radiusSlot) point[ring.radiusSlot] = Math.sin(angle) * radius;
-    if (ring.heightSlot) point[ring.heightSlot] = height;
-    return [point.x, point.y, point.z];
+    return this.correction.buildPoint({
+      buf,
+      idx,
+      bounds,
+      plan: this._circularPlan,
+      normalize: (value, b) => this._normalize(value, b),
+    });
   }
 
   /**
@@ -438,19 +421,15 @@ class PlotInstance {
    * already continuous across the seam by construction.
    */
   _isBreak(buf, idx, point, prevPoint) {
-    const dx = point[0] - prevPoint[0];
-    const dy = point[1] - prevPoint[1];
-    const dz = point[2] - prevPoint[2];
-    if (Math.sqrt(dx * dx + dy * dy + dz * dz) > STEP_BREAK_THRESHOLD) return true;
-
-    const ring = this._circularPlan;
-    if (!ring) return false;
-    for (const slot of [ring.radiusSlot, ring.heightSlot]) {
-      if (!slot || !isPeriodicMetric(this._metricForSlot(slot))) continue;
-      const delta = buf[slot][idx] - buf[slot][idx - 1];
-      if (Math.abs(delta) > Math.PI) return true;
-    }
-    return false;
+    return this.correction.isBreak({
+      buf,
+      idx,
+      point,
+      prevPoint,
+      plan: this._circularPlan,
+      isPeriodicSlot: (s) => isPeriodicMetric(this._metricForSlot(s)),
+      threshold: STEP_BREAK_THRESHOLD,
+    });
   }
 
   /** Clear buffered history + ratchets and rebuild series/labels (metric/origin/preset changed). */
@@ -521,13 +500,19 @@ class PlotInstance {
         buf.z.shift();
       }
 
-      // Only grow the ratchets for axes that actually use them: not "time"
-      // (live window instead — see _boundsFor) and not a periodic metric
-      // (bounded (-π, π], normalized directly via cos/sin in
-      // _buildSeriesPoint — see above).
-      if (this.xMetric !== 'time' && !isPeriodicMetric(this.xMetric)) this._growRange(this.xRange, x);
-      if (this.yMetric !== 'time' && !isPeriodicMetric(this.yMetric)) this._growRange(this.yRange, y);
-      if (this.zMetric && this.zMetric !== 'time' && !isPeriodicMetric(this.zMetric)) this._growRange(this.zRange, z);
+      // Grow the ratchet for every active metric except "time" (which uses a
+      // live scrolling window instead — see _boundsFor). Periodic metrics
+      // ARE grown too: circularEmbeddingCorrection's ring slot never reads
+      // this range (it uses the raw angle directly via cos/sin), so growing
+      // it there is just unused, harmless work — but noopPlotCorrection (and
+      // any slot NOT chosen as the ring, e.g. a periodic radius/height in
+      // the 2+-periodic-axes fallback) DOES call normalize() on it, which
+      // needs real bounds. Skipping growth here used to leave those bounds
+      // permanently {min:Infinity, max:-Infinity}, normalizing to a flat 0
+      // for the whole run — a real bug, not "raw/uncorrected" behavior.
+      if (this.xMetric !== 'time') this._growRange(this.xRange, x);
+      if (this.yMetric !== 'time') this._growRange(this.yRange, y);
+      if (this.zMetric && this.zMetric !== 'time') this._growRange(this.zRange, z);
     });
 
     const bounds = this._frameBounds();

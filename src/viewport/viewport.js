@@ -10,6 +10,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { displaySettings } from '../app/displaySettings.js';
 import { mountDisplayControls } from './displayControls.js';
+import { mountGravitationalPotentialPanel } from './gravitationalPotentialPanel.js';
+import { LagrangePointsOverlay } from '@adapters/overlays/lagrangePointsOverlay.js';
+import { ForceFieldOverlay } from '@adapters/overlays/forceFieldOverlay.js';
+import { BillboardArrowOverlay } from '@adapters/overlays/billboardArrowOverlay.js';
+import { PotentialFieldOverlay } from '@adapters/overlays/potentialFieldOverlay.js';
+import { EquipotentialLinesOverlay } from '@adapters/overlays/equipotentialLinesOverlay.js';
+import { FieldLinesOverlay } from '@adapters/overlays/fieldLinesOverlay.js';
 
 const TRAIL_LENGTH = 600;
 const MIN_RADIUS = 0.15;
@@ -174,6 +181,17 @@ export function mountViewport(el, store) {
 
   // Self-contained "Display ▾" popover — see displayControls.js.
   mountDisplayControls(el);
+  // Dedicated potential-field panel, top-right so it doesn't collide with
+  // the NLIPS pill/Display popover anchored top-left — see
+  // gravitationalPotentialPanel.js.
+  mountGravitationalPotentialPanel(el);
+
+  const lagrangeOverlay = new LagrangePointsOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const forceFieldOverlay = new ForceFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const billboardArrowOverlay = new BillboardArrowOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
+  const potentialFieldOverlay = new PotentialFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const equipotentialLinesOverlay = new EquipotentialLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const fieldLinesOverlay = new FieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
 
   // --- Render loop -------------------------------------------------------
   const tmp = new THREE.Vector3();
@@ -183,6 +201,12 @@ export function mountViewport(el, store) {
 
     if (latestSnapshot) {
       const relBodies = latestSnapshot.relativeBodies(store.origin);
+      lagrangeOverlay.update(relBodies);
+      forceFieldOverlay.update(relBodies);
+      billboardArrowOverlay.update(relBodies);
+      potentialFieldOverlay.update(relBodies);
+      equipotentialLinesOverlay.update(relBodies);
+      fieldLinesOverlay.update(relBodies);
       relBodies.forEach((b, i) => {
         const entry = entries[i];
         if (!entry) return;

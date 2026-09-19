@@ -1,5 +1,5 @@
 import { Body } from './Body.js';
-import { SOFTENING } from './constants.js';
+import { config } from './Config.js';
 
 // Gravitational constant in simulation units. Presets are tuned against G = 1.
 export const G = 1.0;
@@ -17,12 +17,17 @@ export class Simulation {
    * @param {Body[]} bodies
    * @param {object} [opts]
    * @param {number} [opts.dt]  Integration timestep.
+   * @param {import('../api/logger/Logger.js').Logger} [opts.logger]  Optional — logs
+   *   every emitted snapshot. No default adapter is imported here (core must
+   *   not depend on @adapters); pass one from the composition root (store.js)
+   *   or leave unset to log nothing.
    */
-  constructor(bodies = [], { dt = 0.01 } = {}) {
+  constructor(bodies = [], { dt = 0.01, logger = null } = {}) {
     this.bodies = bodies;
     this.dt = dt;
     this.time = 0;
     this.running = true;
+    this.logger = logger;
     /** @type {Set<(s: Snapshot) => void>} */
     this._listeners = new Set();
   }
@@ -42,6 +47,9 @@ export class Simulation {
 
   emit() {
     const snap = this.snapshot();
+    // debug(), not a dedicated method: per-tick model data is exactly what
+    // "debug" level means — see @api/logger/Logger.js.
+    if (this.logger) this.logger.debug(snap);
     for (const l of this._listeners) l(snap);
   }
 
@@ -74,6 +82,7 @@ export class Simulation {
     });
   }
 
+  // this should be an interface with an adapter (wired in main)
   /** Time derivative of the packed state vector: d/dt [pos, vel] = [vel, acc]. */
   _derivatives(s) {
     const n = this.bodies.length;
@@ -92,7 +101,7 @@ export class Simulation {
         const dx = s[oj] - s[oi];
         const dy = s[oj + 1] - s[oi + 1];
         const dz = s[oj + 2] - s[oi + 2];
-        const r2 = dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING;
+        const r2 = dx * dx + dy * dy + dz * dz + config.softening * config.softening;
         const invR3 = 1 / (r2 * Math.sqrt(r2));
         const f = G * this.bodies[j].mass * invR3;
         ax += f * dx;
@@ -168,7 +177,7 @@ export class Simulation {
         const dx = bj.position[0] - bi.position[0];
         const dy = bj.position[1] - bi.position[1];
         const dz = bj.position[2] - bi.position[2];
-        const r = Math.sqrt(dx * dx + dy * dy + dz * dz + SOFTENING * SOFTENING);
+        const r = Math.sqrt(dx * dx + dy * dy + dz * dz + config.softening * config.softening);
         u += -G * bi.mass * bj.mass / r;
       }
     }

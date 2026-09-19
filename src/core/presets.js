@@ -48,6 +48,37 @@ export const PRESETS = {
     },
   },
 
+  'two-body-inclined': {
+    label: 'Two body (inclined elliptical)',
+    build() {
+      // Unequal masses (so "smaller body" is meaningful) on an eccentric ellipse —
+      // start off-circular-speed so the orbit isn't a perfect circle, and give the
+      // smaller body some z-position/z-velocity so its orbital plane is inclined
+      // relative to the primary's, instead of both sitting flat in z=0.
+      const primaryMass = 20;
+      const secondaryMass = 4;
+      const dist = 5;
+      const inclinationDeg = 20; // tilt of the secondary's orbital plane
+      const inclinationRad = (inclinationDeg * Math.PI) / 180;
+
+      // Circular speed at this distance would be sqrt(G*M/r); starting SLOWER than
+      // that (0.8x) makes the orbit eccentric (elliptical) instead of circular.
+      const circularSpeed = Math.sqrt(primaryMass / dist);
+      const orbitalSpeed = circularSpeed * 0.8;
+
+      return [
+        new Body({ name: 'Primary', mass: primaryMass, color: '#f6e05e', position: [0, 0, 0], velocity: [0, 0, 0] }),
+        new Body({
+          name: 'Secondary',
+          mass: secondaryMass,
+          color: '#68d391',
+          position: [dist * Math.cos(inclinationRad), 0, dist * Math.sin(inclinationRad)],
+          velocity: [0, orbitalSpeed, 0],
+        }),
+      ];
+    },
+  },
+
   'three-body-planar': {
     label: 'Three body (figure-8, planar)',
     build() {

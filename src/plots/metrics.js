@@ -15,6 +15,13 @@ import { G } from '../core/Simulation.js';
 // bodies producing Infinity/NaN.
 const EPSILON = 1e-9;
 
+// Distance below which a body is "at the coordinate origin" for θ̇'s purposes
+// — genuinely undefined there (polar angle has no defined rate at r=0), not
+// just fast-but-real physics. Much larger than EPSILON (which only guards
+// against literal division by exact 0) so this catches the true singularity
+// without flagging an ordinary close encounter elsewhere as "undefined".
+const POLE_EPSILON = 1e-4;
+
 // --- Unit system (see src/core/constants.js for the full derivation) -------
 //
 // The integrator runs in dimensionless simulation units, chosen so that
@@ -37,6 +44,11 @@ const METRIC_UNITS = {
   rdot: 'AU/tu',
   thetadot: 'rad/tu',
   phidot: 'rad/tu',
+  vx: 'AU/tu',
+  vy: 'AU/tu',
+  vz: 'AU/tu',
+  rhodot: 'AU/tu',
+  dAdt: 'AU²/tu',
   // Coordinate-system axis components (from COORD_SYSTEMS[*].axes).
   x: 'AU',
   y: 'AU',
@@ -98,25 +110,58 @@ function potentialEnergy(body, snapshot) {
  *
  * r = sqrt(x²+y²+z²), rho² = x²+y² (cylindrical radius squared).
  */
-function radialVelocity(body) {
+export function radialVelocity(body) {
   const [x, y, z] = body.position;
   const [vx, vy, vz] = body.velocity;
   const r = Math.hypot(x, y, z) + EPSILON;
   return (x * vx + y * vy + z * vz) / r;
 }
 
-function azimuthalRate(body) {
+export function azimuthalRate(body) {
   const [x, y] = body.position;
   const [vx, vy] = body.velocity;
   const rho2 = x * x + y * y + EPSILON;
   return (x * vy - y * vx) / rho2;
 }
 
-function polarRate(body) {
+export function vx(body) {
+  return body.velocity[0];
+}
+
+export function vy(body) {
+  return body.velocity[1];
+}
+
+export function vz(body) {
+  return body.velocity[2];
+}
+
+export function cylindricalRhoDot(body) {
+  const [x, y] = body.position;
+  const [vx_, vy_] = body.velocity;
+  const rho = Math.hypot(x, y) + EPSILON;
+  return (x * vx_ + y * vy_) / rho;
+}
+
+export function arealVelocity(body) {
+  const [x, y] = body.position;
+  const rho2 = x * x + y * y;
+  return 0.5 * rho2 * azimuthalRate(body);
+}
+
+export function polarRate(body) {
   const [x, y, z] = body.position;
   const [vx, vy, vz] = body.velocity;
-  const r = Math.hypot(x, y, z) + EPSILON;
-  const rho = Math.hypot(x, y) + EPSILON;
+  const rawR = Math.hypot(x, y, z);
+  const rawRho = Math.hypot(x, y);
+  // At the true pole (r≈0, rho≈0 together) θ has no defined rate — the
+  // EPSILON-guarded denominator below would otherwise turn this 0/0 into an
+  // arbitrary huge finite number (denominator ~EPSILON², i.e. ~1e-18) rather
+  // than a real value. NaN displays as "—" in the UI (see objectPanel.js's
+  // formatting), which is the honest answer here, not a giant number.
+  if (rawR < POLE_EPSILON && rawRho < POLE_EPSILON) return NaN;
+  const r = rawR + EPSILON;
+  const rho = rawRho + EPSILON;
   const rdot = (x * vx + y * vy + z * vz) / r;
   return (z * rdot - vz * r) / (r * rho);
 }
@@ -134,6 +179,11 @@ export const DERIVED_METRICS = [
   { id: 'rdot', label: 'ṙ (radial velocity)', compute: (body) => radialVelocity(body) },
   { id: 'thetadot', label: 'θ̇ (polar rate)', compute: (body) => polarRate(body) },
   { id: 'phidot', label: 'φ̇ (azimuthal rate)', compute: (body) => azimuthalRate(body) },
+  { id: 'vx', label: 'vx', compute: (body) => vx(body) },
+  { id: 'vy', label: 'vy', compute: (body) => vy(body) },
+  { id: 'vz', label: 'vz', compute: (body) => vz(body) },
+  { id: 'rhodot', label: 'ρ̇ (cylindrical radial velocity)', compute: (body) => cylindricalRhoDot(body) },
+  { id: 'dAdt', label: 'dA/dt (areal velocity)', compute: (body) => arealVelocity(body) },
 ];
 
 /**
