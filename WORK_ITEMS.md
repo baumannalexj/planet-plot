@@ -12,8 +12,9 @@
 - [x] add 'z offset' back to gravitational potential
   - (me): done — moved into the new Gravitational Potential panel as its 4th slider (was stranded in the old flat popover after the panel consolidation).
 - [~] for Gravitation Potential surface, choose between 'mesh' and 'surface' < we also need a "draw box 'r', and I think the magnitude of all Gravitational potential can be normalized to the draw *cylinder*: mesh, surface, and equipotential lines should fade out as it gets closer to the draw *radius*  only (visibility or transparency proportional to the magnitude, this is a long draw cylinder tube, doesn't control the height or floor clipping that's for the main outer draw box to clip)  — fade half already in progress (Task 23); mesh-vs-surface toggle half moved to WORK_QUEUE.md Task 30, blocked pending clarification on what "surface" means distinct from the current displaced-mesh rendering
-- [ ] find SVG arrow icons / arrows looking better -- can you get SVG arrow icon?
+- [~] find SVG arrow icons / arrows looking better -- can you get SVG arrow icon?
   - (me): current arrows are canvas-path-drawn (chevron/skinny styles, Task 16), not SVG — an SVG-sourced icon would need rasterizing onto the same CanvasTexture (SVG → Image → drawImage), still no library dependency needed. Say go and I'll queue it as a 3rd ARROW_STYLES entry.
+  - → task-wi-34-svg-arrow-icon
 - [x] for grav potential, we need higher resolution for the equipotential and for the grav potential
   - (me): done — slider ranges bumped 10x (scale: -1..3 → -10..30; resolution: 4..60 → 4..600).
 - [x] the field lines are looking great we want to extend this - should they be apart of another section of display? can you extend "lines" that trace the force line in 3d space from one body to the others in real time? the slider can be "number of lines" I think we want that for force vector field too, density isn't right, we need 2d arrows just projected onto the 3d view angle) 
