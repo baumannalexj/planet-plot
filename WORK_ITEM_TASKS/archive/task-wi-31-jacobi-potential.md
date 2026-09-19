@@ -1,5 +1,10 @@
 ## Task 31: Effective-potential (Jacobi) field visualization [claimed: planet-plot-f2]
   - claimed by planet-plot-f2
+  - **DONE, merged into feat/simulator-mvp as `43aae73`** (fast-forward, no conflicts at
+    merge time — one small mechanical rebase conflict in `gravitationalPotentialPanel.js`
+    resolved earlier, against Task 25's retirement of `potentialFieldRadius`/
+    `potentialFieldResolution`: dropped this branch's now-stale radius/resolution sliders,
+    kept only the new Jacobi-scale slider).
 
 **Note on why this is a full task now, not another research brief:** the earlier "Research:
 Effective-potential (Jacobi) field for Lagrange points" entry above (tagged `[done: team-lead
@@ -56,3 +61,21 @@ physical signature that distinguishes this from the plain gravitational potentia
 **Do NOT** modify `PotentialFieldCalculator`/`PotentialFieldOverlay` — this is a new, parallel
 calculator/overlay pair, not a variant flag on the existing ones.
 
+
+**Merged files:** `src/core/overlays/JacobiPotentialCalculator.js` (new),
+`src/adapters/overlays/jacobiPotentialOverlay.js` (new), `src/app/displaySettings.js`
+(`showJacobiPotential`/`jacobiPotentialScale`), `src/viewport/gravitationalPotentialPanel.js`
+(3rd pill + Jacobi-scale slider), `src/viewport/viewport.js` (wired into the render loop),
+`test/core/overlays/JacobiPotentialCalculator.test.js` (new, 6 tests — verifies L4/L5 are
+local maxima, L1/L2 are saddles, via a translation trick to sample the real calculator at
+non-grid-aligned points rather than a separate reimplementation).
+
+**UI location:** the dedicated Gravitational Potential panel, not `DISPLAY_OPTIONS` — that
+panel already owns every potential-surface variant (Task 18), `DISPLAY_OPTIONS` isn't the
+registry for this family anymore.
+
+**Verified:** `yarn test` 32/32 (26 baseline + 6 new), `yarn build` clean — both re-verified
+in the shared checkout after merge, not just trusted from the worktree. Live `yarn dev`
+visual check (L4/L5 hilltop, L1-L3 saddle) not performed — browser MCP locked by concurrent
+sessions throughout; the unit tests assert the same physical signature directly against the
+production calculator instead.
