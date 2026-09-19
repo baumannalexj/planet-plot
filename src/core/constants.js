@@ -30,12 +30,21 @@ export const SECONDS_PER_DAY = config.secondsPerDay;
 export const DAYS_PER_YEAR = config.daysPerYear;
 
 // --- Chosen simulation unit system ------------------------------------------
+//
+// unitMassSolar/unitLengthAu are user-editable magnitude modifiers (default 1)
+// on top of the solar-mass/AU base units — e.g. modifier=5 on unit length
+// means "1 simulation length unit = 5 AU". Read live from config on every
+// call (not cached at import) so an in-UI edit takes effect immediately.
 
 /** 1 simulation mass unit, in kg (default: one solar mass). */
-export const UNIT_MASS_KG = SOLAR_MASS_KG;
+export function getUnitMassKg() {
+  return SOLAR_MASS_KG * config.unitMassSolar;
+}
 
 /** 1 simulation length unit, in metres (default: one AU). */
-export const UNIT_LENGTH_M = AU_M;
+export function getUnitLengthM() {
+  return AU_M * config.unitLengthAu;
+}
 
 /**
  * 1 simulation time unit, in seconds.
@@ -49,17 +58,19 @@ export const UNIT_LENGTH_M = AU_M;
  * With 1 AU + 1 solar mass this is ~5.0227e6 s ≈ 58.13 days — which correctly
  * makes a circular 1 AU orbit's period 2*pi time units = 1 year.
  */
-export const UNIT_TIME_SEC = Math.sqrt(
-  UNIT_LENGTH_M ** 3 / (G_REAL * UNIT_MASS_KG)
-);
+export function getUnitTimeSec() {
+  return Math.sqrt(getUnitLengthM() ** 3 / (G_REAL * getUnitMassKg()));
+}
 
-export const UNIT_TIME_DAYS = UNIT_TIME_SEC / SECONDS_PER_DAY;
+export function getUnitTimeDays() {
+  return getUnitTimeSec() / SECONDS_PER_DAY;
+}
 
 // --- Conversion helpers ------------------------------------------------------
 
 /** Convert dimensionless simulation time to elapsed days. */
 export function simTimeToDays(simTime) {
-  return simTime * UNIT_TIME_DAYS;
+  return simTime * getUnitTimeDays();
 }
 
 /** Convert dimensionless simulation time to elapsed years. */
@@ -69,7 +80,7 @@ export function simTimeToYears(simTime) {
 
 /** Convert a simulation mass to solar masses (identity while UNIT_MASS = M_sun). */
 export function simMassToSolar(simMass) {
-  return (simMass * UNIT_MASS_KG) / SOLAR_MASS_KG;
+  return (simMass * getUnitMassKg()) / SOLAR_MASS_KG;
 }
 
 // --- Force-law regularization ------------------------------------------------

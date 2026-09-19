@@ -62,6 +62,18 @@ each other, and now that work happens in git worktrees rather than the shared ch
 7. **When in doubt, SendMessage before editing shared files.** Cheap to ask, expensive
    to resolve a merge conflict on a doc nobody's proud of.
 
+## Physics invariants (not a coordination rule — applies to any task touching a calculator)
+
+**"Draw radius"/"draw r" (in any overlay — force field, potential field, equipotential
+lines, field lines) bounds SAMPLING EXTENT and RENDERING (where points are placed, where
+a streamline stops being drawn, where opacity fades) — it must never bound which bodies
+contribute to a force/potential calculation at a given point.** Gravity has infinite
+range; every `accelerationAt`/`potentialAt`-style summation must always sum over ALL
+bodies, full stop, regardless of any draw-radius/draw-cylinder/shell setting. If a task
+involves adding or changing sampling near a draw-radius concept (Task 23, Task 25), do
+NOT add a distance-based body-exclusion "optimization" to the force/potential sum as a
+side effect — that would silently change the physics, not just the visualization.
+
 ## Task 1: WI-5 — Equations reference list [done: team-lead]
 
 **Goal:** a static, read-only "Equations" section in the object panel, listing named
@@ -1270,7 +1282,16 @@ closed ring with no seam-chord.
 
 ---
 
-## Task 23: Gravitational Potential — cylindrical draw-radius fade [worktree: task-23-potential-fade]
+## Task 23: Gravitational Potential — cylindrical draw-radius fade [worktree ready: worktree-agent-aad8d55892ebb464e, at .claude/worktrees/agent-aad8d55892ebb464e]
+
+**Verified:** commit `1de3c5a`. Files touched: `displaySettings.js` (+`potentialFieldRadius`),
+`potentialFieldOverlay.js` (dropped `GRID_EXTENT`, mesh rebuilds on radius change — not just
+resolution, needed since `PlaneGeometry` bakes in extent at construction; itemSize-4 vertex
+color for alpha fade), `equipotentialLinesOverlay.js` (same `GRID_EXTENT` removal,
+per-vertex-color lines instead of one flat color per level), `gravitationalPotentialPanel.js`
+(4th "Draw radius" slider). Confirmed the physics-sum constraint (rule #8) needed zero
+changes — `PotentialFieldCalculator.potentialAt()` already sums all bodies unconditionally,
+fade is render-only. `yarn test` 26/26, `yarn build` clean. Not verified live in `yarn dev`.
 
 **Goal:** per WORK_ITEMS.md — potential mesh/surface and equipotential lines should fade
 (opacity, not hard clip) as cylindrical radius (`hypot(x,y)`, no z term — "cylinder" not
@@ -1427,6 +1448,282 @@ this is additive, not a replacement), `src/app/displaySettings.js` (+
 lines on, switch the new arrow-style control to `svg-barb`, confirm thin continuous lines
 with small camera-facing barb markers render along each streamline (barbs still track camera
 rotation, same as billboard arrows), switching back to `cone` restores the old look.
+
+---
+
+## Task 27: CONSTANTS magnitude-modifier for unit length/mass [worktree ready: task-27-constants-modifier — merged into main tree]
+  - claimed by planet-plot-f2
+
+**Merged.** `src/core/constants.js`: `UNIT_MASS_KG`/`UNIT_LENGTH_M`/`UNIT_TIME_SEC`/
+`UNIT_TIME_DAYS` converted to `getUnitMassKg()`/`getUnitLengthM()`/`getUnitTimeSec()`/
+`getUnitTimeDays()`, reading `config.unitMassSolar`/`config.unitLengthAu` fresh each call;
+`simTimeToDays`/`simTimeToYears`/`simMassToSolar` updated to call the getters.
+`src/viewport/objectPanel.js`: the `unitMassSolar`/`unitLengthAu` Constants rows now show a
+static reference span (the real-world value they scale) alongside the existing editable
+modifier input; other 6 constants unchanged. "(research needed)" flag from the task doc was
+resolved, not left open — grepped, confirmed no separate "unit G" field exists, proceeded on
+the unit-length reading.
+
+**Verified:** `yarn test` 26/26, `yarn build` clean (re-verified again after merging into main
+tree, not just in the worktree). Live-effect numerically verified via a scratch script
+(`simTimeToDays(1)` goes from 58.125 to 164.40 days when `unitLengthAu` is set to 2, matching
+expected `UNIT_LENGTH_M³` scaling) — not yet re-checked in the actual browser UI.
+
+**Goal:** resolve WORK_ITEMS.md's "CONSTANTS" feature request. User's spec, mapped onto this
+codebase's actual fields: `constants.json` already has `UNIT_MASS_SOLAR`/`UNIT_LENGTH_AU`
+("Unit mass"/"Unit length" in the Constants section) sitting at value `1` each — **but they're
+dead**. `constants.js` derives `UNIT_MASS_KG = SOLAR_MASS_KG` and `UNIT_LENGTH_M = AU_M`
+directly, never multiplying by `config.unitMassSolar`/`config.unitLengthAu`. These two fields
+ARE the "modifier" the user is asking for (default 1, becomes a magnitude adjustment — e.g.
+modifier=5 on unit length means "1 simulation length unit = 5 AU", not 1). This is a narrower,
+better-scoped version of the ask than it first reads — only these 2 of the 8 constants get the
+new modifier UI treatment; the other 6 (`gReal`, `solarMassKg`, `auM`, `secondsPerDay`,
+`daysPerYear`, `softening`) keep their current direct-edit behavior (Task 13), unchanged.
+
+**(research needed) — confirm before building:** "Unitized-G" in the original ask doesn't map
+to any existing field (G is implicitly 1 in the integrator; there's no separate "unit G"
+constant) — proceeding on the assumption it was a slip for "unitized-AU"/unit length, since the
+very next sentence says "so I think AU = 1 in your calculations." If that's wrong, stop and
+ask rather than guessing further.
+
+**1. `src/core/constants.js` — make the modifier live:**
+- `UNIT_MASS_KG`/`UNIT_LENGTH_M` are consts today, frozen at module load — they need to read
+  `config.unitMassSolar`/`config.unitLengthAu` FRESH on every use (same "read live, don't
+  cache" principle as Task 12's `Simulation.js` softening fix), since editing the modifier in
+  the UI should take effect immediately without a page reload.
+- Concretely: convert `UNIT_MASS_KG`, `UNIT_LENGTH_M`, `UNIT_TIME_SEC`, `UNIT_TIME_DAYS` from
+  exported consts to exported functions (`getUnitMassKg()`, `getUnitLengthM()`, etc.) — or
+  getters on a small object — that recompute from `config.*` each call.
+  `UNIT_MASS_KG = SOLAR_MASS_KG * config.unitMassSolar`, `UNIT_LENGTH_M = AU_M *
+  config.unitLengthAu`, `UNIT_TIME_SEC`/`UNIT_TIME_DAYS` derive from those exactly as today,
+  just recomputed each call instead of once at import.
+- Downstream usage is narrow — checked via grep, only 3 call sites: `simTimeToDays`,
+  `simTimeToYears`, `simMassToSolar` (all in this same file) need to call the new
+  functions/getters instead of the old frozen consts. `main.js` imports
+  `simTimeToDays`/`simTimeToYears` (unchanged call signature, so `main.js` itself needs no
+  edit) — confirm this with a grep before assuming, don't just trust this note.
+- Do NOT touch `Simulation.js`'s `G`/`SOFTENING` handling (Task 12, already correct/live) —
+  out of scope here.
+
+**2. `src/viewport/objectPanel.js` — split the Constants section's rendering for these 2 rows
+only:**
+- Read the current `for (const { key, label, value, unit } of config.list)` loop (search
+  `op-constant-row`) — it renders one editable `<input>` per constant, identical for all 8.
+- For `key === 'unitMassSolar'` and `key === 'unitLengthAu'` specifically, render a DIFFERENT
+  row shape: the input is the MODIFIER (defaults to `1`, `step="any"`, writes to
+  `config.unitMassSolar`/`config.unitLengthAu` on change — same live-write pattern as every
+  other input in this file), plus a static (non-editable) text span to the right showing the
+  underlying real-world reference value + unit it's scaling — `${config.solarMassKg} ${config.units.solarMassKg}`
+  for the mass one, `${config.auM} ${config.units.auM}` for the length one (i.e. `Config.list`'s
+  `auM`/`solarMassKg` entries, read but not rendered as their own editable row redundantly —
+  keep those 2 base entries in the loop as-is, additive, don't remove them).
+- All 6 other rows keep their current single-input shape, unchanged.
+- Add a one-line comment (not a doc block) explaining WHY these 2 rows differ, since a future
+  reader will otherwise wonder why 2 of 8 rows have an extra span.
+
+**Acceptance check:** `yarn test` passes, `yarn build` succeeds. `yarn dev`: default state is
+unchanged (both modifiers = 1, so `UNIT_LENGTH_M`/`UNIT_MASS_KG` compute identically to before
+this task). Set "Unit length" modifier to `2`, confirm `main.js`'s days/years elapsed-time
+readout changes immediately (roughly doubles for the same sim-time, since 1 sim length unit
+now represents 2 AU) — this is the live-effect proof, not just that the input accepts a value.
+
+**Do NOT** add the modifier treatment to any of the other 6 constants — this task is scoped to
+exactly `unitMassSolar`/`unitLengthAu`.
+
+---
+
+## Task 28: Redo — @provider/DI container, ViewController, and `_derivatives()` interface
+
+**Note on why this exists:** the earlier "Research: Provider/DI container + ViewController
+architecture" entry above (tagged `[done: team-lead — recommends against building either]`)
+turned out to be a placeholder — its body is only the research BRIEF (what to read, what
+questions to answer, "recommend one... report back under 400 words"), not an actual filled-in
+recommendation. No such recommendation exists anywhere in this file. Per the coordination
+contract's rule 3a ("verify the ACTUAL CODE... don't trust a note claiming work is done"),
+treat that entry as unresolved and redo it for real. Covers WORK_ITEMS.md's 3 open
+`# code structure` items.
+
+**1. @provider directory + composition root** — read `src/viewport/viewport.js` (currently
+`new LagrangePointsOverlay(scene, toThree)` etc., all inline `new ConcreteClass()` calls) and
+`src/main.js` (how `store`/loggers are wired today) in full. Decide and justify: one
+`Provider` class per interface family (`FieldCalculator`, `OverlayRenderer`,
+`PlotCorrectionStrategy`, `Logger`), or one combined provider object with several
+`provideX()` methods? Does the provider get passed INTO `mountViewport(el, store, provider)`,
+or imported as a singleton like `store`/`displaySettings` already are — pick whichever is
+consistent with this codebase's existing composition-root convention, don't invent a new one.
+
+**2. ViewController** — is `viewport.js`'s `mountViewport` function already close to this role
+(it already owns all the three.js calls), or does the ask imply extracting it into a class
+with named methods `main.js` calls instead of one big function? Recommend one.
+
+**3. `_derivatives()` interface + adapter** — `Simulation.js`'s `_derivatives()` (the RK4
+force law) has an inline comment flagging it should be an interface with an adapter, wired in
+main, same DI pattern as the other interfaces. This is a SEPARATE decision from #1/#2 — it
+touches the physics core itself, not just rendering/composition wiring, so don't assume the
+same answer applies. Read `Simulation.js`'s constructor/`step()`/`_derivatives()` in full;
+propose the interface shape (`ForceLaw.derivatives(state, bodies) -> Float64Array`?) and
+where the default Newtonian implementation would live (`@core` vs `@adapters`?), consistent
+with how `FieldCalculator` implementations are split today.
+
+**Deliverable:** an actual filled-in recommendation for all 3, each ending "so the follow-up
+task doc should say: ..." — this entry itself should be replaced/updated with the real
+findings, not left as another unfilled brief for the next session.
+
+---
+
+## Task 29: Shared, user-selectable coordinate system (bodies panel + plots) [claimed: task-29-coord-system]
+  - claimed by task-29-coord-system
+
+**Goal:** resolve two related WORK_ITEMS.md asks — "'bodies' and 'plot' should share
+coordinate system" and "I should be able to change the coordinates." Current state (confirmed
+by reading the actual code, not guessing): `src/plots/plotPanel.js`'s `PlotCard` already has
+ITS OWN independent `coordSystemId` (defaults to `DEFAULT_COORD_SYSTEM = 'cartesian'` from
+`src/core/coordinates.js`), user-changeable via a per-card `<select>` (`coordSelect`) — so
+"change the coordinates" already half-exists, just scoped to one plot card at a time, with no
+shared/global selection. `src/viewport/objectPanel.js`'s Calc readout grid, by contrast, has
+`const CALC_COORD_SYSTEM = 'spherical'` HARDCODED with no selector at all — this is the actual
+gap "bodies and plot should share coordinate system" is pointing at.
+
+**1. Promote to a shared setting** — add a `coordSystemId` field to the shared
+`displaySettings` singleton (`src/app/displaySettings.js`), default `'cartesian'` (matches
+`DEFAULT_COORD_SYSTEM`). This becomes the ONE shared selection multiple views read from,
+same pattern as every other cross-view setting in that file.
+
+**2. `objectPanel.js`** — replace the hardcoded `CALC_COORD_SYSTEM` constant with
+`displaySettings.coordSystemId` (read live in the `computeMetric(id, relBody, snapshot,
+CALC_COORD_SYSTEM)` call inside `store.onFrame`), AND add a coordinate-system `<select>`
+somewhere in the panel (there is currently no UI for this at all) that writes to
+`displaySettings.set('coordSystemId', ...)` — reuse `COORD_SYSTEMS`'s keys as the option list,
+same enumeration `plotPanel.js`'s own `coordSelect` already uses.
+
+**3. `plotPanel.js`** — decide (and say which, don't silently pick): does each `PlotCard` KEEP
+its own independent `coordSystemId` (current behavior, useful if the user wants to compare a
+body in cartesian on one plot and spherical on another), or does the per-card selector become
+a per-card OVERRIDE of a shared default (`coordSystemId` initializes from
+`displaySettings.coordSystemId` but can still be changed independently per card)? Recommend
+the override approach — it satisfies "share" (new cards start in sync) without breaking the
+existing per-card flexibility (a user who explicitly changes one card's dropdown keeps that
+choice, no click-elsewhere resets it).
+
+**Acceptance check:** `yarn test` passes, `yarn build` succeeds. `yarn dev`, change the new
+shared coordinate-system control, confirm the object panel's Calc grid AND newly-created plot
+cards all reflect it, and an existing plot card's independently-changed selector isn't
+silently overridden.
+
+---
+
+## Task 30 (blocked — needs clarification): Gravitational Potential — mesh vs "surface" toggle
+
+**Do not start without an answer.** WORK_ITEMS.md asks: "for Gravitation Potential surface,
+choose between 'mesh' and 'surface'." Task 23 (above) already implements the cylindrical
+draw-radius FADE for the existing potential visualization — that's a separate, already-scoped
+piece and is NOT this task.
+
+**(research needed) — the actual blocker:** `PotentialFieldOverlay` (read the file) already
+IS a vertex-displaced `THREE.PlaneGeometry` mesh with a vertex-color gradient — i.e. it's
+already "a mesh" by any normal definition. It's unclear what a distinct second "surface" mode
+would render that's visually different from what exists today (a smooth interpolated surface
+vs. the current per-vertex-displaced grid? A different geometry entirely, like isosurface
+marching cubes? Or is "mesh" meant to describe the discrete SAMPLE POINTS as small marker
+glyphs, analogous to how force-field has both a continuous look (billboard arrows) and this
+displaced-mesh look, with "surface" being a third, smoother option?). Ask the user directly
+what "mesh" and "surface" are each supposed to look like, with 1-2 concrete visual references
+if possible, before scoping an implementation — guessing here risks building the wrong thing
+twice.
+
+---
+
+## Task 31: Effective-potential (Jacobi) field visualization
+
+**Note on why this is a full task now, not another research brief:** the earlier "Research:
+Effective-potential (Jacobi) field for Lagrange points" entry above (tagged `[done: team-lead
+— design doc only, not implemented]`) is also a placeholder — its body is the research
+INSTRUCTIONS, not filled-in findings. However, the physics needed is well-established and
+already stated in that entry, so this task specs the real implementation directly rather than
+re-requesting another unfilled report.
+
+**Goal:** a scalar-field overlay for the Jacobi/effective potential in the restricted 3-body
+problem's rotating frame — `Φ_eff(x,y) = -G·m1/r1 - G·m2/r2 - ½ω²(x²+y²)`, where `r1`/`r2` are
+distances to the two most massive bodies (the same "primary"/"secondary" selection
+`LagrangePointsCalculator.js` already implements — reuse that selection logic, don't
+reinvent it) and `ω` is their orbital angular rate. This is distinct from the existing
+`PotentialFieldCalculator`'s raw gravitational U — the `-½ω²(x²+y²)` centrifugal term is what
+makes L4/L5 into local maxima instead of saddle points.
+
+**1. Compute ω** from the two primaries' current relative position + velocity: for a
+2-body relative orbit, `ω = |r × v| / |r|²` where `r`/`v` are the secondary's position/velocity
+relative to the primary (standard specific-angular-momentum-over-r² formula — this is exact
+for a 2-body relative orbit, an approximation in the full N-body sim, same caveat
+`LagrangePointsCalculator` already documents for its own L1-L5 computation).
+
+**2. Calculator — new `src/core/overlays/JacobiPotentialCalculator.js`**, `class
+JacobiPotentialCalculator extends FieldCalculator` (`@api/FieldCalculator.js`). Mirror
+`PotentialFieldCalculator.js`'s grid-sampling structure exactly (same `G`/`SOFTENING` imports,
+same planar z-fixed sampling), but: (a) select primary/secondary via the same logic
+`LagrangePointsCalculator.js` uses, (b) compute `ω` per point #1 above (computed ONCE per
+`compute()` call, not per grid point — it only depends on the two primaries' current state),
+(c) evaluate `Φ_eff` at each grid point using ALL bodies for the `-Gm/r` terms (per the
+coordination contract's rule 8 — gravity/potential sums are never radius-limited, only
+sampling/rendering extent is) but the primaries specifically for identifying `r1`/`r2`, plus
+the centrifugal term using the primaries' `ω` and each point's distance from their COM (not
+world origin).
+
+**3. Adapter — new `src/adapters/overlays/JacobiPotentialOverlay.js`**, `class
+JacobiPotentialOverlay extends OverlayRenderer`. Recommended rendering: reuse
+`PotentialFieldOverlay`'s displaced-mesh approach (same ratchet/exclusion pattern, same
+`excludeNearBody`) rather than contour lines — the raw potential field already uses a
+displaced mesh, and a Jacobi surface is the more visually informative of the two options here
+since the L4/L5 "hilltop" shape is the whole point of this visualization (contour lines would
+show it as an isolated closed loop, less immediately readable as "these are local maxima").
+
+**4. Settings + UI** — `displaySettings.showJacobiPotential` (boolean, default false),
+`jacobiPotentialScale` (mirrors `potentialFieldScale`). Add to `DISPLAY_OPTIONS` or the
+dedicated Gravitational Potential panel (`gravitationalPotentialPanel.js`) — the latter is
+more consistent, since this is another potential-surface variant, but flag your choice in the
+report since that panel currently assumes exactly 2 sub-visualizations (surface + lines).
+
+**Acceptance check:** `yarn test` passes, `yarn build` succeeds. `yarn dev`, toggle Jacobi
+potential on, confirm L4/L5 (from the existing Lagrange-points overlay) sit at local maxima
+("hilltops") on the new surface, and L1-L3 read as saddle points, not maxima — this is the
+physical signature that distinguishes this from the plain gravitational potential.
+
+**Do NOT** modify `PotentialFieldCalculator`/`PotentialFieldOverlay` — this is a new, parallel
+calculator/overlay pair, not a variant flag on the existing ones.
+
+---
+
+## Task 32 (blocked — needs a design decision from the user): Vector field as a mesh surface
+
+**Do not start without an answer.** WORK_ITEMS.md: "change vector field to a mesh surface —
+design decision needed." An earlier reply already surfaced the actual conflict and it's still
+unanswered: `BillboardArrowOverlay` (2D camera-facing arrows) was built as an ADDITIONAL
+toggle alongside the original cone `ForceFieldOverlay`, specifically so a continuous-mesh
+option COULD coexist as a third alternative rather than replacing either.
+
+**(research needed):** ask the user directly — do they want a continuous mesh/surface
+representation of the force field (magnitude as height/color on a plane, like
+`PotentialFieldOverlay` but for the vector field's magnitude) as a THIRD toggle alongside
+cones and billboard arrows, or did the original ask mean something else (e.g. a vector
+FIELD LINE mesh/ribbon rather than a magnitude surface)? Get a concrete answer before scoping
+a calculator/overlay pair — this is exactly the kind of ambiguity a wrong guess would cost a
+full implementation pass to undo.
+
+---
+
+## Task 33 (blocked — needs clarification from the user): Separate unused gravitational constants
+
+**Do not start without an answer.** WORK_ITEMS.md: "separate related universal gravitational
+orbit equation constants we may not be using." Already investigated once (see the `(me)`
+reply in WORK_ITEMS.md) — confirmed by reading `src/core/constants.json`/`constants.js`: all
+8 current constants are actively read by `constants.js`'s derivations. There is nothing
+currently unused to separate out.
+
+**(research needed):** ask the user which specific constants they had in mind — this may be
+about constants that exist in physics references but aren't in this codebase at all yet (e.g.
+`c` the speed of light, for the GEM/Maxwell-analog equations already added to the Equations
+list per an earlier WORK_ITEMS answer), not about splitting up the existing 8. Get a concrete
+list before scoping any file changes.
+
 
 
 

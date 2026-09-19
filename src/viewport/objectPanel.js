@@ -411,6 +411,13 @@ export function mountObjectPanel(el, store) {
   // whichever one the user is actively editing.
   const constantEntries = [];
 
+  // unitMassSolar/unitLengthAu are magnitude MODIFIERS on solarMassKg/auM (not
+  // independent values), so they get an extra static span showing what they scale.
+  const MODIFIER_REFERENCE = {
+    unitMassSolar: () => `${config.solarMassKg} ${config.units.solarMassKg}`,
+    unitLengthAu: () => `${config.auM} ${config.units.auM}`,
+  };
+
   for (const { key, label, value, unit } of config.list) {
     const row = document.createElement('div');
     row.className = 'op-constant-row';
@@ -424,6 +431,11 @@ export function mountObjectPanel(el, store) {
       config[key] = parseFloat(input.value) || 0;
     });
     row.appendChild(nameSpan);
+    if (MODIFIER_REFERENCE[key]) {
+      const refSpan = document.createElement('span');
+      refSpan.textContent = MODIFIER_REFERENCE[key]();
+      row.appendChild(refSpan);
+    }
     row.appendChild(input);
     constantsSection.appendChild(row);
     constantEntries.push({ key, input });
