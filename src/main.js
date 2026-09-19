@@ -9,6 +9,7 @@ import { mountViewport } from './viewport/viewport.js';
 import { mountObjectPanel } from './viewport/objectPanel.js';
 import { mountPlotPanel } from './plots/plotPanel.js';
 import { loggerProvider } from './provider/LoggerProvider.js';
+import { forceLawProvider } from './provider/ForceLawProvider.js';
 
 // --- Logger wiring (composition root decides implementation + level) -------
 // Console visibility during dev + CSV tick-data capture, both at once — flip
@@ -26,6 +27,11 @@ store.sim.logger = loggerProvider.provideMultiLogger([
 ]);
 // loggerProvider.provideLoglevelLogger(level) is available; swap in for
 // provideConsoleLogger above when wanted.
+
+// Composition root decides the force law, same as the logger above —
+// Simulation.js only falls back to its own NewtonianForceLaw default when
+// nothing is supplied.
+store.sim.forceLaw = forceLawProvider.provideNewtonianForceLaw();
 
 const SUPERSCRIPT_DIGITS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' }; // FIXME move this to config, and the SuperScriptDigits can be a type/class
 function toSuperscript(n) {
