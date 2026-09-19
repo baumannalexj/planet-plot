@@ -41,4 +41,10 @@ export const DISPLAY_OPTIONS = [
     'Field-lines rendered length/arrow-spacing multiplier — mirrors the force field\'s scale slider.',
     { min: -0.5, max: 1.5, step: 0.1 }
   ),
+  new SelectDisplayOption(
+    'fieldLineArrowStyle',
+    'Field line arrow style',
+    'Direction-marker shape drawn along each field line: 3D-oriented cones, or camera-facing SVG-rasterized barb billboards.',
+    { choices: ['cone', 'svg-barb'] }
+  ),
 ];

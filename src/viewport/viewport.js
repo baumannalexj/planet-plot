@@ -198,7 +198,7 @@ export function mountViewport(el, store) {
   const potentialFieldOverlay = new PotentialFieldOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
   const equipotentialLinesOverlay = new EquipotentialLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
   const jacobiPotentialOverlay = new JacobiPotentialOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
-  const fieldLinesOverlay = new FieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()));
+  const fieldLinesOverlay = new FieldLinesOverlay(scene, (v) => toThree(v, new THREE.Vector3()), camera);
 
   // --- Render loop -------------------------------------------------------
   const tmp = new THREE.Vector3();
