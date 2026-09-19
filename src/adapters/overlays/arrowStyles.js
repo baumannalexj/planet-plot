@@ -53,7 +53,48 @@ function drawSkinny(ctx, size) {
   ctx.fill();
 }
 
+// Self-authored, trivial SVG markup (rounded-cap shaft + rounded-join
+// chevron head) — no external asset, so no licensing question and no
+// network fetch at build/runtime. Rasterized via SVG -> Image -> drawImage.
+const SVG_ARROW_MARKUP =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+  '<path d="M8,50 H62" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>' +
+  '<path d="M50,22 L92,50 L50,78" stroke="#fff" stroke-width="10" ' +
+  'stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
+  '</svg>';
+
+let svgArrowImage = null;
+let svgArrowImageReady = false;
+
+/** Lazily kicks off the SVG->Image decode once; safe to call every frame. */
+function getSvgArrowImage() {
+  if (svgArrowImage || typeof Image === 'undefined') return svgArrowImage;
+  const img = new Image();
+  img.onload = () => {
+    svgArrowImageReady = true;
+  };
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(SVG_ARROW_MARKUP)}`;
+  svgArrowImage = img;
+  return img;
+}
+
+/**
+ * Svg: rasterizes a self-authored SVG arrow icon onto the canvas
+ * (SVG -> Image -> drawImage). Image decoding is asynchronous, so until the
+ * first decode completes this falls back to drawChevron's shape rather than
+ * leaving the texture blank.
+ */
+function drawSvg(ctx, size) {
+  const img = getSvgArrowImage();
+  if (img && svgArrowImageReady) {
+    ctx.drawImage(img, 0, 0, size, size);
+    return;
+  }
+  drawChevron(ctx, size);
+}
+
 export const ARROW_STYLES = {
   chevron: drawChevron,
   skinny: drawSkinny,
+  svg: drawSvg,
 };

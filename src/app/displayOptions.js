@@ -22,7 +22,7 @@ export const DISPLAY_OPTIONS = [
     'arrowStyle',
     'Arrow style',
     'Canvas-drawn shape used for the billboard-arrows glyph.',
-    { choices: ['chevron', 'skinny'] }
+    { choices: ['chevron', 'skinny', 'svg'] }
   ),
   new RangeDisplayOption(
     'forceFieldScale',
