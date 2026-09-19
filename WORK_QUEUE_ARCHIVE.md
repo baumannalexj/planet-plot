@@ -1383,3 +1383,17 @@ each streamline (reuses BillboardArrowOverlay's camera-basis quaternion construc
 call before the async decode resolves. Added to the `arrowStyle` dropdown's choices. `yarn
 test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Full task doc
 archived at `WORK_ITEM_TASKS/archive/task-wi-34-svg-arrow-icon.md`.
+
+## task-wi-28-provider-di-viewcontroller [DONE: research complete, merged into feat/simulator-mvp as cd8460b — no source changes, follow-up implementation queued as task-wi-35]
+
+Real recommendation filled in (the original archived research entry was a placeholder never
+actually answered): (1) one `<ApiName>Provider.js` singleton class per @api interface in a new
+`src/provider/`, imported directly by consumers (matches this codebase's existing
+store/displaySettings/ACTIVE_CORRECTION singleton-import convention — not threaded through
+mount function params); (2) no `ViewController` class — `mountViewport` already matches its 5
+sibling `mountX(el, store)` panels' shape, the actual gap is direct `@adapters` imports, fixed
+by (1); (3) new `@api/ForceLaw.js` interface + `@core/NewtonianForceLaw.js` default impl
+(lives in `@core` not `@adapters`, same precedent as `FieldCalculator`'s concrete
+implementations — pure physics math, no framework dependency), `Simulation` takes an optional
+`forceLaw` opt same pattern as its existing `logger` opt. `yarn test` 32/32, `yarn build`
+clean. Full doc archived at `WORK_ITEM_TASKS/archive/task-wi-28-provider-di-viewcontroller.md`.
