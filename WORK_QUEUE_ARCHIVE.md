@@ -1348,3 +1348,12 @@ now represents 2 AU) — this is the live-effect proof, not just that the input 
 exactly `unitMassSolar`/`unitLengthAu`.
 
 ---
+
+## task-wi-25-shell-discretization [DONE: merged into feat/simulator-mvp as 2c72533]
+
+Merged by team-lead after rebasing task-25-shell-discretization onto the current base
+branch tip (60ee538) and reconciling with Task 23's already-merged draw-radius fade —
+`potentialFieldRadius` retired in favor of the shared `drawRadius`; the radial-fade formula
+was ported into the new triangle-list mesh with a 4-component (RGBA) vertex-color
+attribute. `yarn test` 26/26, `yarn build` clean, post-rebase and post-merge. Full task doc
+archived at `WORK_ITEM_TASKS/archive/task-wi-25-shell-discretization.md`.
