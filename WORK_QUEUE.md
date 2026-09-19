@@ -9,5 +9,4 @@ task detail, `WORK_QUEUE_ARCHIVE.md` for completed work (Tasks 1-22, 27).
 * task-wi-32-vectorfield-mesh | WORK_ITEM_TASKS/task-wi-32-vectorfield-mesh.md | status: BLOCKED: needs the human to say whether they want a magnitude-surface or a field-line mesh/ribbon
 * task-wi-33-unused-constants | WORK_ITEM_TASKS/task-wi-33-unused-constants.md | status: BLOCKED: needs the human to name which specific constants they meant
 * task-wi-34-svg-arrow-icon | WORK_ITEM_TASKS/archive/task-wi-34-svg-arrow-icon.md | status: DONE
-* task-wi-35-provider-forcelaw-implementation | WORK_ITEM_TASKS/task-wi-35-provider-forcelaw-implementation.md | status: ASSIGNED
-  - claimed by admin-convert-fanout @ 2026-09-19T01:05:00Z
+* task-wi-35-provider-forcelaw-implementation | WORK_ITEM_TASKS/task-wi-35-provider-forcelaw-implementation.md | status: READY_FOR_MERGE: task-wi-35-provider-forcelaw

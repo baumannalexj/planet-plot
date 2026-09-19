@@ -1,5 +1,6 @@
 import { Body } from './Body.js';
 import { config } from './Config.js';
+import { NewtonianForceLaw } from './NewtonianForceLaw.js';
 
 // Gravitational constant in simulation units. Presets are tuned against G = 1.
 export const G = 1.0;
@@ -21,13 +22,19 @@ export class Simulation {
    *   every emitted snapshot. No default adapter is imported here (core must
    *   not depend on @adapters); pass one from the composition root (store.js)
    *   or leave unset to log nothing.
+   * @param {import('../api/ForceLaw.js').ForceLaw} [opts.forceLaw]  Optional —
+   *   defaults to NewtonianForceLaw if unset. The composition root (main.js)
+   *   passes one in explicitly via ForceLawProvider so it's the one actually
+   *   deciding the concrete class, per this module's own default only
+   *   covering the "unset" case.
    */
-  constructor(bodies = [], { dt = 0.01, logger = null } = {}) {
+  constructor(bodies = [], { dt = 0.01, logger = null, forceLaw = null } = {}) {
     this.bodies = bodies;
     this.dt = dt;
     this.time = 0;
     this.running = true;
     this.logger = logger;
+    this.forceLaw = forceLaw ?? new NewtonianForceLaw();
     /** @type {Set<(s: Snapshot) => void>} */
     this._listeners = new Set();
   }
@@ -82,58 +89,25 @@ export class Simulation {
     });
   }
 
-  // this should be an interface with an adapter (wired in main)
-  /** Time derivative of the packed state vector: d/dt [pos, vel] = [vel, acc]. */
-  _derivatives(s) {
-    const n = this.bodies.length;
-    const d = new Float64Array(n * 6);
-    for (let i = 0; i < n; i++) {
-      const oi = i * 6;
-      // position' = velocity
-      d[oi] = s[oi + 3];
-      d[oi + 1] = s[oi + 4];
-      d[oi + 2] = s[oi + 5];
-      // velocity' = acceleration from all other bodies
-      let ax = 0, ay = 0, az = 0;
-      for (let j = 0; j < n; j++) {
-        if (i === j) continue;
-        const oj = j * 6;
-        const dx = s[oj] - s[oi];
-        const dy = s[oj + 1] - s[oi + 1];
-        const dz = s[oj + 2] - s[oi + 2];
-        const r2 = dx * dx + dy * dy + dz * dz + config.softening * config.softening;
-        const invR3 = 1 / (r2 * Math.sqrt(r2));
-        const f = G * this.bodies[j].mass * invR3;
-        ax += f * dx;
-        ay += f * dy;
-        az += f * dz;
-      }
-      d[oi + 3] = ax;
-      d[oi + 4] = ay;
-      d[oi + 5] = az;
-    }
-    return d;
-  }
-
   /** Advance one RK4 step. */
   step() {
     const dt = this.dt;
     const s0 = this._packState();
     const n = s0.length;
 
-    const k1 = this._derivatives(s0);
+    const k1 = this.forceLaw.derivatives(s0, this.bodies, config.softening);
     const s1 = new Float64Array(n);
     for (let i = 0; i < n; i++) s1[i] = s0[i] + 0.5 * dt * k1[i];
 
-    const k2 = this._derivatives(s1);
+    const k2 = this.forceLaw.derivatives(s1, this.bodies, config.softening);
     const s2 = new Float64Array(n);
     for (let i = 0; i < n; i++) s2[i] = s0[i] + 0.5 * dt * k2[i];
 
-    const k3 = this._derivatives(s2);
+    const k3 = this.forceLaw.derivatives(s2, this.bodies, config.softening);
     const s3 = new Float64Array(n);
     for (let i = 0; i < n; i++) s3[i] = s0[i] + dt * k3[i];
 
-    const k4 = this._derivatives(s3);
+    const k4 = this.forceLaw.derivatives(s3, this.bodies, config.softening);
     const out = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       out[i] = s0[i] + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);

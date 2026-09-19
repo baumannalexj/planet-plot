@@ -8,23 +8,30 @@ import { simTimeToDays, simTimeToYears } from './core/constants.js';
 import { mountViewport } from './viewport/viewport.js';
 import { mountObjectPanel } from './viewport/objectPanel.js';
 import { mountPlotPanel } from './plots/plotPanel.js';
-import { ConsoleLogger } from '@adapters/loggers/ConsoleLogger.js';
-import { LoglevelLogger } from '@adapters/loggers/LoglevelLogger.js';
-import { CsvFileLogger } from '@adapters/loggers/CsvFileLogger.js';
-import { MultiLogger } from '@adapters/loggers/MultiLogger.js';
+import { loggerProvider } from './provider/LoggerProvider.js';
+import { forceLawProvider } from './provider/ForceLawProvider.js';
 
 // --- Logger wiring (composition root decides implementation + level) -------
 // Console visibility during dev + CSV tick-data capture, both at once — flip
-// ConsoleLogger for LoglevelLogger to swap the console backend for the
-// `loglevel` library (e.g. for its persistent-level/remote-transport
+// provideConsoleLogger for provideLoglevelLogger to swap the console backend
+// for the `loglevel` library (e.g. for its persistent-level/remote-transport
 // ecosystem) without touching any call site; the Logger interface is
 // identical either way. ConsoleLogger's level is set to 'info' so per-tick
 // debug() calls don't spam the browser console — CsvFileLogger has no level
 // filter of its own, so it still captures every tick to disk regardless
 // (see WORK_ITEMS.md: "we should keep that every time").
 const CONSOLE_LOG_LEVEL = 'info';
-store.sim.logger = new MultiLogger([new ConsoleLogger(CONSOLE_LOG_LEVEL), new CsvFileLogger()]);
-void LoglevelLogger; // available; swap in for ConsoleLogger above when wanted
+store.sim.logger = loggerProvider.provideMultiLogger([
+  loggerProvider.provideConsoleLogger(CONSOLE_LOG_LEVEL),
+  loggerProvider.provideCsvFileLogger(),
+]);
+// loggerProvider.provideLoglevelLogger(level) is available; swap in for
+// provideConsoleLogger above when wanted.
+
+// Composition root decides the force law, same as the logger above —
+// Simulation.js only falls back to its own NewtonianForceLaw default when
+// nothing is supplied.
+store.sim.forceLaw = forceLawProvider.provideNewtonianForceLaw();
 
 const SUPERSCRIPT_DIGITS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' }; // FIXME move this to config, and the SuperScriptDigits can be a type/class
 function toSuperscript(n) {
