@@ -222,7 +222,7 @@ export function mountViewport(el, store) {
         // — no accumulation error over long runs, decoupled from
         // Simulation.step() (point-mass gravity exerts zero torque about a
         // body's own center, so there's no differential equation to
-        // integrate here). See WORK_QUEUE.md's "Research: Rotational
+        // integrate here). See .WORK_ITEMS/WORK_QUEUE.md's "Research: Rotational
         // bodies" entry.
         toThree(b.spinAxis, spinAxisTmp).normalize();
         spinQuaternion.setFromAxisAngle(spinAxisTmp, b.spinRate * latestSnapshot.time);

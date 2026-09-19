@@ -15,7 +15,7 @@ export class Body {
    * @param {number} [opts.spinRate]    Constant spin rate, rad/tu. Default 0.
    *   Point-mass gravity exerts zero torque about a body's own center, so
    *   spin is kinematic and decoupled from Simulation's RK4 step — see
-   *   WORK_QUEUE.md's "Research: Rotational bodies" entry.
+   *   .WORK_ITEMS/WORK_QUEUE.md's "Research: Rotational bodies" entry.
    */
   constructor({ name, mass, color, position, velocity, spinAxis = [0, 1, 0], spinRate = 0 }) {
     this.name = name;

@@ -8,7 +8,7 @@ import path from 'node:path';
 // implementations of @api's interfaces (three.js overlays + plot
 // corrections), @viewport = the composition/mounting code that wires
 // adapters in. Dependency direction is enforced by convention here, not by
-// tooling — see CLAUDE.md/WORK_ITEMS.md if that ever needs a real lint rule.
+// tooling — see CLAUDE.md/.WORK_ITEMS/WORK_ITEMS.md if that ever needs a real lint rule.
 function srcPath(sub) {
   return fileURLToPath(new URL(`./src/${sub}`, import.meta.url));
 }

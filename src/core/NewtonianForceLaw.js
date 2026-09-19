@@ -7,7 +7,7 @@ const G = 1.0;
 
 /**
  * Default force law: softened Newtonian gravity, summed over ALL bodies —
- * no distance cutoff (physics invariant, see WORK_ITEM_RULES.md). Same body
+ * no distance cutoff (physics invariant, see .WORK_ITEMS/WORK_ITEMS_RULES.md). Same body
  * as Simulation's former private `_derivatives()`, adapted to the
  * `derivatives(state, bodies, softening)` interface shape.
  */

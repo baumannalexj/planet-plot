@@ -63,7 +63,7 @@ export class EquipotentialLinesCalculator extends FieldCalculator {
    * the outer ring (ring sizes can differ between shells when skew != 0, so
    * this is an approximate nearest-angle match, not an exact geometric one).
    * This is the simpler first-pass adjacency scheme flagged as acceptable in
-   * WORK_QUEUE.md Task 25 if the "real" redesign turned out bigger than
+   * .WORK_ITEMS/WORK_QUEUE.md Task 25 if the "real" redesign turned out bigger than
    * expected — it did, so this is what shipped. Known limitations: no cells
    * fill the very center (inside the innermost shell) or outside the
    * outermost shell, and the proportional theta-match is an approximation

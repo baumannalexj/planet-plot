@@ -1,15 +1,45 @@
 # Work Item Rules — multi-Claude coordination contract for this repo
 
 Renamed from `WORK_QUEUE.md`'s old "Coordination contract" section to match the
-`~/.claude/RULES/multi-agent-work-queue-protocol.md` template. `WORK_QUEUE.md` is now a
-slim index only — full task detail lives in `WORK_ITEM_TASKS/`. See that global doc for
-the full rationale; this file is the project-adapted, enforceable version of it.
+`~/.claude/PROTOCOL_TEMPLATE_multi-agent-multi-claude-protocol/.WORK_ITEMS/` template.
+`WORK_QUEUE.md` is now a slim index only — full task detail lives in `WORK_QUEUE_TASKS/`.
+All coordination docs live under this `.WORK_ITEMS/` directory (checked into git — not
+gitignored; these are real project history, not scratch state), matching the global
+template's layout exactly so a session already familiar with one repo's `.WORK_ITEMS/`
+needs zero ramp-up on another's.
+
+## Files
+
+```
+.WORK_ITEMS/
+  WORK_ITEMS.md              — human backlog. [ ] open · [~] converted to a task · [x] done · [?] blocked on a human answer
+  WORK_ITEMS_RULES.md         — this file
+  WORK_QUEUE.md              — slim index: one line + status per active task
+  WORK_QUEUE_TASKS/
+    task-wi-<n>-<slug>.md     — full task doc
+    research/                 — research-only task docs live here
+    archive/                  — task docs whose WORK_QUEUE.md line has been archived (kept, not deleted)
+  WORK_QUEUE_ARCHIVE.md      — DONE queue lines, swept out of WORK_QUEUE.md periodically
+  WORK_ITEMS_FINISHED.md     — legacy done-log predating this system; superseded by WORK_QUEUE_ARCHIVE.md going forward, kept for history
+  COORDINATION.md            — narrative "why"/onboarding doc — read this file (WORK_ITEMS_RULES.md) for the enforceable rules instead
+```
+
+## Secrets/PII linter
+
+`yarn lint:secrets` (`scripts/lint-secrets.mjs`, no new dependency) scans `.WORK_ITEMS/` for
+high-confidence secret shapes (AWS keys, private-key blocks, GitHub/Slack tokens, generic
+`apiKey=...`-style assignments) and any email address that isn't one of this repo's known
+git identities. Relative file paths are explicitly NOT flagged — the concern is live
+credentials/PII pasted into a task doc, not ordinary references to files or committers.
+Run it before committing anything under `.WORK_ITEMS/` that includes pasted external
+content (research findings, error output, etc.) — task docs and status lines you wrote
+yourself are low-risk, but anything copied in from elsewhere isn't guaranteed clean.
 
 ## Roles
 
 - **Orchestrator** — currently split across two interactive sessions (`planet-plot-04`,
   this one, and `planet-plot-f2`) acting as co-orchestrators until/unless the human
-  designates one. Converts `WORK_ITEMS.md` entries into `WORK_ITEM_TASKS/*.md` docs, watches
+  designates one. Converts `WORK_ITEMS.md` entries into `WORK_QUEUE_TASKS/*.md` docs, watches
   `WORK_QUEUE.md` for `READY_FOR_MERGE`, dispatches the merge-coordinator, marks `DONE`.
 - **Worker** — a dispatched subagent (often `isolation:"worktree"`) or either interactive
   session picking up a `TODO` task directly.
@@ -17,20 +47,6 @@ the full rationale; this file is the project-adapted, enforceable version of it.
   rebases first, always verifies the real diff, always deletes the worktree+branch after.
 - **Admin agent** — claiming/status-flipping is mechanical; delegate to a cheap subagent
   when the queue gets busy rather than spending an orchestrator turn on bookkeeping.
-
-## Files
-
-```
-WORK_ITEMS.md              — human backlog. [ ] open · [~] converted to a task · [x] done · [?] blocked on a human answer
-WORK_ITEM_RULES.md         — this file
-WORK_QUEUE.md              — slim index: one line + status per active task
-WORK_ITEM_TASKS/
-  task-wi-<n>-<slug>.md     — full task doc
-  research/                 — research-only task docs live here
-  archive/                  — task docs whose WORK_QUEUE.md line has been archived (kept, not deleted)
-WORK_QUEUE_ARCHIVE.md      — DONE queue lines, swept out of WORK_QUEUE.md periodically
-WORK_ITEMS_FINISHED.md     — legacy done-log predating this system; superseded by WORK_QUEUE_ARCHIVE.md going forward, kept for history
-```
 
 ## Claiming — optimistic lock via exact-string replace
 

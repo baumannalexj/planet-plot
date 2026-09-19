@@ -19,7 +19,7 @@ import { forceLawProvider } from './provider/ForceLawProvider.js';
 // identical either way. ConsoleLogger's level is set to 'info' so per-tick
 // debug() calls don't spam the browser console — CsvFileLogger has no level
 // filter of its own, so it still captures every tick to disk regardless
-// (see WORK_ITEMS.md: "we should keep that every time").
+// (see .WORK_ITEMS/WORK_ITEMS.md: "we should keep that every time").
 const CONSOLE_LOG_LEVEL = 'info';
 store.sim.logger = loggerProvider.provideMultiLogger([
   loggerProvider.provideConsoleLogger(CONSOLE_LOG_LEVEL),

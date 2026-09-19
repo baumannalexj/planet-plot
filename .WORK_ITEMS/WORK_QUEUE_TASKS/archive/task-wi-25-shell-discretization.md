@@ -24,7 +24,7 @@ structurally-predictable ring layout. `accelerationAt`/`potentialAt` in
 every calculator still sum over every body in `bodies` unconditionally —
 `drawRadius` only bounds where sample points are placed, never which bodies
 contribute to the force/potential sum (gravity has infinite range, per rule
-8 in `WORK_ITEM_RULES.md`).
+8 in `WORK_ITEMS_RULES.md`).
 
 **Equipotential-lines adjacency (the flagged risk):** the old marching-squares
 code assumed a flat rectangular `points[i*resolution+j]` grid from

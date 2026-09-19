@@ -1,8 +1,8 @@
 # Work Queue Archive
 
-Completed task-wi entries, swept out of `WORK_QUEUE.md` per `WORK_ITEM_RULES.md`.
+Completed task-wi entries, swept out of `WORK_QUEUE.md` per `WORK_ITEMS_RULES.md`.
 Numbering follows the original ad-hoc "Task N" scheme used before this repo adopted
-the `WORK_ITEM_RULES.md` protocol — kept as-is rather than renumbered, including one
+the `WORK_ITEMS_RULES.md` protocol — kept as-is rather than renumbered, including one
 known collision (two unrelated tasks both originally called "Task 15" — kept distinct
 below by content, not renumbered, to avoid rewriting history).
 
@@ -1356,7 +1356,7 @@ branch tip (60ee538) and reconciling with Task 23's already-merged draw-radius f
 `potentialFieldRadius` retired in favor of the shared `drawRadius`; the radial-fade formula
 was ported into the new triangle-list mesh with a 4-component (RGBA) vertex-color
 attribute. `yarn test` 26/26, `yarn build` clean, post-rebase and post-merge. Full task doc
-archived at `WORK_ITEM_TASKS/archive/task-wi-25-shell-discretization.md`.
+archived at `WORK_QUEUE_TASKS/archive/task-wi-25-shell-discretization.md`.
 
 ## task-wi-29-shared-coord-system [DONE: merged into feat/simulator-mvp as c4c16e7]
 
@@ -1364,7 +1364,7 @@ Rebased onto current tip (was based on a stale ref), verified diff matched the b
 report exactly (displaySettings.js/plotPanel.js/objectPanel.js only), fast-forward merged by
 team-lead. `yarn test` 26/26, `yarn build` clean, re-verified in the shared checkout
 post-merge. Full task doc archived at
-`WORK_ITEM_TASKS/archive/task-wi-29-shared-coord-system.md`.
+`WORK_QUEUE_TASKS/archive/task-wi-29-shared-coord-system.md`.
 
 ## task-wi-26-svg-fieldline-arrows [DONE: merged into feat/simulator-mvp as aed6413]
 
@@ -1373,7 +1373,7 @@ barb rasterized once onto a CanvasTexture, rendered as camera-facing billboard q
 each streamline (reuses BillboardArrowOverlay's camera-basis quaternion construction).
 `yarn test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Live
 `yarn dev` visual check not done. Full task doc archived at
-`WORK_ITEM_TASKS/archive/task-wi-26-svg-fieldline-arrows.md`.
+`WORK_QUEUE_TASKS/archive/task-wi-26-svg-fieldline-arrows.md`.
 
 ## task-wi-34-svg-arrow-icon [DONE: merged into feat/simulator-mvp as 8dc71c0]
 
@@ -1382,7 +1382,7 @@ each streamline (reuses BillboardArrowOverlay's camera-basis quaternion construc
 `data:image/svg+xml` decode + `drawImage`, falls back to the existing chevron shape on any
 call before the async decode resolves. Added to the `arrowStyle` dropdown's choices. `yarn
 test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Full task doc
-archived at `WORK_ITEM_TASKS/archive/task-wi-34-svg-arrow-icon.md`.
+archived at `WORK_QUEUE_TASKS/archive/task-wi-34-svg-arrow-icon.md`.
 
 ## task-wi-28-provider-di-viewcontroller [DONE: research complete, merged into feat/simulator-mvp as cd8460b — no source changes, follow-up implementation queued as task-wi-35]
 
@@ -1396,7 +1396,7 @@ by (1); (3) new `@api/ForceLaw.js` interface + `@core/NewtonianForceLaw.js` defa
 (lives in `@core` not `@adapters`, same precedent as `FieldCalculator`'s concrete
 implementations — pure physics math, no framework dependency), `Simulation` takes an optional
 `forceLaw` opt same pattern as its existing `logger` opt. `yarn test` 32/32, `yarn build`
-clean. Full doc archived at `WORK_ITEM_TASKS/archive/task-wi-28-provider-di-viewcontroller.md`.
+clean. Full doc archived at `WORK_QUEUE_TASKS/archive/task-wi-28-provider-di-viewcontroller.md`.
 
 ## task-wi-35-provider-forcelaw-implementation [DONE: merged into feat/simulator-mvp as 96add6b]
 
@@ -1410,4 +1410,4 @@ identical, confirming the refactor changed no physics. `yarn build` clean. Live 
 check not done (headless worktree, no browser). One conflict during merge (WORK_QUEUE.md,
 task-wi-35's own status line) — checked the ENTIRE file for markers this time, not just the
 expected line, per the earlier incident. Full task doc archived at
-`WORK_ITEM_TASKS/archive/task-wi-35-provider-forcelaw-implementation.md`.
+`WORK_QUEUE_TASKS/archive/task-wi-35-provider-forcelaw-implementation.md`.

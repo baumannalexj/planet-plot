@@ -2,7 +2,7 @@
 // field/streamline calculators instead of each having its own grid-building
 // loop. Power-law radial spacing + skew-driven per-shell density both derive
 // from "shell volume ~ r^2 dr" (or ~r dr for a planar/2D ring) — see
-// WORK_QUEUE.md Task 25 for the full research verdict.
+// .WORK_ITEMS/WORK_QUEUE.md Task 25 for the full research verdict.
 
 export function computeShellGrid(center, { drawRadius, radiusIterations, thetaIterations, phiIterations, skew, planar = false }) {
   const points = [];

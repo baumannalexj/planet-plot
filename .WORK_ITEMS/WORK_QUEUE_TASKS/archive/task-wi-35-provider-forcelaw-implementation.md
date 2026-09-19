@@ -1,7 +1,7 @@
 ## task-wi-35: Implement the Provider/DI + ForceLaw split (task-wi-28's recommendation)
 
 **Goal:** implement the three findings from `task-wi-28`'s research pass (archived at
-`WORK_ITEM_TASKS/archive/task-wi-28-provider-di-viewcontroller.md` — read it in full first,
+`WORK_QUEUE_TASKS/archive/task-wi-28-provider-di-viewcontroller.md` — read it in full first,
 this task doc only summarizes the "so the follow-up task doc should say" lines).
 
 **1. Provider directory.** Create `src/provider/` with `FieldCalculatorProvider.js`,
@@ -25,7 +25,7 @@ inline `new MultiLogger([...])` block (~lines 16-27).
 **4. New `@api/ForceLaw.js` interface**: `derivatives(state: Float64Array, bodies: Body[],
 softening: number) -> Float64Array`. New `@core/NewtonianForceLaw.js`: the current
 `Simulation._derivatives()` body, adapted to this signature, NO behavior change — same
-softened `1/r^3` sum over ALL bodies (physics invariant in `WORK_ITEM_RULES.md`: never add a
+softened `1/r^3` sum over ALL bodies (physics invariant in `WORK_ITEMS_RULES.md`: never add a
 distance-based cutoff). Add `provideNewtonianForceLaw()` to `ForceLawProvider`.
 
 **5. `Simulation`'s constructor** gains an optional `forceLaw` opt, same pattern as its

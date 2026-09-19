@@ -105,7 +105,7 @@ reading `this.bodies` to `this.forceLaw.derivatives(s, this.bodies, config.softe
 `derivatives(state, bodies, softening) -> Float64Array`) and `src/core/NewtonianForceLaw.js`
 (the current `_derivatives()` body, adapted to the new signature, no behavior change — same
 softened `1/r^3` sum over all bodies, still unbounded/no radius cutoff per the physics
-invariants in WORK_ITEM_RULES.md). Add a `ForceLawProvider` (part 1) with
+invariants in WORK_ITEMS_RULES.md). Add a `ForceLawProvider` (part 1) with
 `provideNewtonianForceLaw()`. `Simulation`'s constructor accepts an optional `forceLaw` opt
 wired the same way `logger` already is; `main.js` passes `forceLawProvider.provideNewtonianForceLaw()`
 in explicitly rather than relying on the in-`Simulation.js` default, so the composition root
