@@ -1365,3 +1365,12 @@ report exactly (displaySettings.js/plotPanel.js/objectPanel.js only), fast-forwa
 team-lead. `yarn test` 26/26, `yarn build` clean, re-verified in the shared checkout
 post-merge. Full task doc archived at
 `WORK_ITEM_TASKS/archive/task-wi-29-shared-coord-system.md`.
+
+## task-wi-26-svg-fieldline-arrows [DONE: merged into feat/simulator-mvp as aed6413]
+
+New `fieldLineArrowStyle` display setting (`'cone'`/`'svg-barb'`), additive — SVG chevron
+barb rasterized once onto a CanvasTexture, rendered as camera-facing billboard quads along
+each streamline (reuses BillboardArrowOverlay's camera-basis quaternion construction).
+`yarn test` 32/32, `yarn build` clean, verified in the shared checkout post-merge. Live
+`yarn dev` visual check not done. Full task doc archived at
+`WORK_ITEM_TASKS/archive/task-wi-26-svg-fieldline-arrows.md`.
